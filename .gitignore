@@ -8,3 +8,7 @@ wheels/
 
 # Virtual environments
 .venv
+.h2mcp/
+projects/
+h2mcp.local.json
+.pytest_cache/

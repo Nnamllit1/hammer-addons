@@ -1,12 +1,12 @@
 [project]
 name = "h2mcp"
 version = "0.1.0"
-description = "Add your description here"
+description = "Local CS2 Workshop Tools and Hammer mapping MCP server"
 readme = "README.md"
 authors = [
-    { name = "Nnamllit1", email = "nothx" }
+    { name = "nnamllit11" }
 ]
-requires-python = ">=3.14"
+requires-python = ">=3.11"
 dependencies = [
     "mcp>=1.26,<2",
 ]

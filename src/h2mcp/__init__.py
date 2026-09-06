@@ -1,2 +1,3 @@
 def main() -> None:
-    print("Hello from h2mcp!")
+    from .cli import main as run
+    run()
