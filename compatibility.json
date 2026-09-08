@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "profiles": [
+    {
+      "name": "CS2 Hammer inspected 2026-09-07",
+      "sha256": "b4755b0a909d0d19ca35f14346643765b32eb4bc18951a777991549ce913dd78",
+      "machine": 34404,
+      "exports": ["BinaryProperties_GetValue", "CreateInterface", "ExtractModuleMetadata", "GetResourceManifestCount", "GetResourceManifests", "InstallSchemaBindings"]
+    }
+  ]
+}

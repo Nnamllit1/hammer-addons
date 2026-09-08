@@ -1,0 +1,8 @@
+LIBRARY hammer_original
+EXPORTS
+    BinaryProperties_GetValue @1
+    CreateInterface @2
+    ExtractModuleMetadata @3
+    GetResourceManifestCount @4
+    GetResourceManifests @5
+    InstallSchemaBindings @6

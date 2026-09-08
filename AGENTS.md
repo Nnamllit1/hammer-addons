@@ -1,10 +1,12 @@
-# Working on h2mcp
+# Working on Hammer Addons
 
-- This is a Python stdio MCP server for saved CS2 addon files and Valve tools.
-- Run `test.bat` for automated tests and a real MCP protocol smoke test.
-- Use `h2mcp.bat call <tool> --args-file <json>` to exercise the same tools as an MCP client.
-- Source projects live under `projects/`; generated state/logs/backups live under `.h2mcp/`. Both are ignored. Never commit Valve's templates or local path configuration.
-- Preserve unknown DMX fields and unrelated bytes. Use Valve's installed dmxconvert for binary maps; do not guess their binary format.
-- Keep file paths confined, require current hashes on replacement, and preserve backups.
-- The build queue worker must be launched separately with `start-worker.bat`. MCP clients on Windows can kill their subprocess trees when disconnecting.
-- Do not claim that a map was visually verified or playtested from a successful parse, conversion, or compile alone.
+- This repository is now a C++20 Windows x64 native Hammer add-on loader. The old h2mcp server is retired.
+- Run `build.bat -Test` (or `test.bat`) to build the DLLs, package dist/ and run native integration/installer tests.
+- SDK: sdk/include/hammer_addons.h. Manifest: addons/hello/addon.ini. Specify ABI changes explicitly; never pass C++ ownership across DLL boundaries.
+- DllMain must stay minimal. Never load plugins, start threads, invoke callbacks or wait on locks from it.
+- Preserve all six original Hammer exports and their ordinals; test integer, floating, stack and mixed argument forwarding.
+- Installation changes only the specific Hammer module and owned loader files. Keep a verified original backup; refuse unknown versions and external modifications.
+- Do not guess document interfaces, vtables or offsets. Existing events report factory requests, not document edits or editor readiness.
+- Simultaneous collaboration is the end goal, not an implemented feature. Report actual loader/editor evidence precisely.
+- projects/, .h2mcp/, build/, dist/ and local config are ignored. Preserve generated maps and private migration backups; never commit Valve binaries, templates or account credentials.
+- Native plugin creation here does not refer to Codex plugins; do not introduce MCP or Codex plugin packaging.

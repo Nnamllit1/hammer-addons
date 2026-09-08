@@ -1,12 +1,15 @@
-# Python-generated files
+# Build output and local tools
 __pycache__/
 *.py[oc]
 build/
 dist/
 wheels/
 *.egg-info
+.vs/
+*.user
+*.suo
 
-# Virtual environments
+# Preserved local mapping data and migration backup (never publish Valve assets)
 .venv
 .h2mcp/
 projects/

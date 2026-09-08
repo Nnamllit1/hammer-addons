@@ -1,24 +1,36 @@
-# Validation on 2026-09-06
+# Validation: 2026-09-07
 
-Tested on Windows against the user's installed CS2 Workshop Tools.
+## Native build and integration
 
-- `setup.bat`: locked dependency installation, Steam/CS2 detection and worker detection passed.
-- `test.bat`: **28 automated tests passed**, followed by an actual stdio MCP smoke test.
-- MCP: handshake, discovery of **21 tools with structured output schemas**, `doctor`, resource read and prompt retrieval passed.
-- Live MCP map workflow: copied Valve's wingman template, added an `info_target`, moved it to `64 0 128`, and verified the entity through a subsequent tool call.
-- Valve `dmxconvert`: accepted the edited map as binary DMX and converted it back to text; marker identity and position were preserved.
-- JavaScript: generated a `cs_script/point_script` starter. Valve reported **1 compiled, 0 failed** and wrote `maps/scripts/main.vjs_c`.
-- Map: attached that script through a `point_script` entity, deployed the source and compiled with Valve's resource compiler. It reported **23 compiled, 0 failed** in approximately 34 seconds and wrote `maps/de_h2mcp_demo.vpk` (11,177,386 bytes).
-- Both successful compiler jobs ran through the independent worker after the submitting MCP connection closed.
-- Codex: `codex mcp get h2mcp --json` confirmed the enabled stdio registration with absolute interpreter/config paths.
+- Windows x64 Release build passed with Visual Studio 2026, MSVC 19.51 and Windows SDK 10.0.26100.0.
+- **20 integration scenarios passed**, using actual compiled DLLs and temporary directories.
+- Proxy tests exercised all six exports by name, ordinal availability, concurrent first resolution, integer/floating/mixed arguments, stack arguments and pointer writes.
+- The real sample DLL loaded, logged events and shut down in the standalone host.
+- Disabled add-ons/global disable, malformed/duplicate manifests, unsupported ABI, ID mismatch, path traversal and missing DLLs were handled without breaking the other sample.
+- Installer tests checked preview, exact original backup, proxy installation, hash inspection, refusal to overwrite external updates, restoration, preservation of add-ons and rejection of unknown builds.
+- A newly generated third-party add-on compiled against only the packaged SDK, installed beside the sample, and received events successfully. The packaged installer ran independently of source-only modules.
 
-The initial compiler test exposed Windows MCP client process-tree cleanup. Compilation was moved to an independent worker; the interrupted job is retained as `interrupted`, rather than reported as a success.
+## Actual CS2 Workshop Tools
 
-The sample uses Valve's template geometry. This validation did **not** include visual inspection in Hammer, an in-game playtest, or bot-navigation validation. The map build log reports zero navigation areas; generating useful navigation and gameplay geometry remains part of mapping work in Hammer. Compiler success alone is not proof that a map is ready to publish.
+- Inspected the installed `tools/hammer.dll`: x64, six named exports with ordinals 1..6. The original SHA256 is recorded in `compatibility.json`.
+- Installed the proxy through `scripts/loader.py install --apply`, preserving and verifying `hammer_original.dll`.
+- Started the user's CS2 Workshop Tools with the existing `h2mcp_demo` addon.
+- Process 36660 presented a window titled `Hammer`. Its loader log recorded:
 
-Local artifacts (ignored by Git):
+```text
+36660 [hammer-addons] hello: Hello from a native Hammer add-on!
+36660 [hammer-addons] loaded hello 0.1.0
+36660 [hammer-addons] hello: hammer.factory.request: ToolSystem2_001
+```
 
-- Demo project: `projects/h2mcp_demo/`
-- Script build: `.h2mcp/jobs/52254bec76e745858dd8202c42195c1e/`
-- Map build: `.h2mcp/jobs/be28721b310543abba9e41cd150be0e1/`
-- Demo source and outputs are also deployed to the CS2 installation under the addon name `h2mcp_demo`.
+This verifies native add-on execution inside the real editor and forwarding of its
+factory request. It does not verify document manipulation, map saving, collaborative
+editing, arbitrary third-party add-ons, or compatibility with other Hammer builds.
+
+## Migration
+
+The Python MCP application and launchers were removed. The global `h2mcp` Codex
+MCP registration was removed using `codex mcp remove h2mcp`. Existing local projects
+were preserved; the pre-pivot working source was archived privately at
+`.h2mcp/before-native-pivot.zip`, including uncommitted work. Neither maps nor that
+archive are included in the public repository.
