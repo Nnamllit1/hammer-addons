@@ -1,4 +1,4 @@
-# Validation: 2026-09-07
+# Validation: 2026-09-07 through 2026-09-08
 
 ## Native build and integration
 
@@ -34,3 +34,11 @@ MCP registration was removed using `codex mcp remove h2mcp`. Existing local proj
 were preserved; the pre-pivot working source was archived privately at
 `.h2mcp/before-native-pivot.zip`, including uncommitted work. Neither maps nor that
 archive are included in the public repository.
+
+## Final build verification, 2026-09-08
+
+- Final installed proxy SHA256: `6e8fb57231c2a47b1c52111f5066d74ef6de778f8c2c463cea87f463a46b8997`.
+- The uninstaller restored the original on the real installation before this final build was installed. Subsequent inspection reported both `proxy_matches=true` and `original_matches=true`.
+- Opened Hammer using its Asset Browser toolbar icon. Process 22720 logged the sample greeting, successful add-on load and `ToolSystem2_001` request with the final proxy installed.
+- Visually inspected the running Hammer window with its normal toolbars and empty document area. No document editing or map-save claim is made.
+- The public repository is now [Nnamllit1/hammer-addons](https://github.com/Nnamllit1/hammer-addons). The [hosted Windows build](https://github.com/Nnamllit1/hammer-addons/actions/runs/34180704898) passed for implementation commit `fbd4510`, including all 20 integration scenarios.
