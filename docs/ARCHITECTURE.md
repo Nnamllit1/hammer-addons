@@ -1,69 +1,92 @@
-# Native loader and collaboration direction
+# Workshop Tools add-on framework
 
-Hammer Addons replaces this repository's previous MCP application. The current
-deliverable is a general native add-on loader. Simultaneous editing is its intended
-future application, not a feature of this initial release.
+Hammer Addons supplies general native add-on infrastructure for CS2 Workshop
+Tools. Hammer is the first editor focus. A future Hammer multiplayer project
+will consume this framework separately; collaboration and networking are not
+milestones of this repository.
+
+## Startup and ownership
 
 ```text
 CS2 Workshop Tools
-  tools/hammer.dll                  our six-export proxy
-    tools/hammer_original.dll       exact backed-up Valve binary
+  assetbrowser.dll                  six-export proxy, active at tool startup
+    assetbrowser_original.dll       exact backed-up Valve binary
     tools/hammer-addons/
-      install.json                  ownership and hash record
+      install.json                  module identity and ownership hashes
       loader.log                    diagnostics
-      disabled                      optional global disable marker
+      hammer_addons_ui.dll          manager in Asset Browser and Hammer
+      disabled                      optional global add-on disable marker
       addons/<id>/addon.ini + DLL    versioned C ABI
+  tools/hammer.dll                  unmodified Valve editor
 ```
 
-The proxy forwards five entry points through x64 assembly thunks. These preserve
-RCX/RDX/R8/R9 and XMM0..3, provide shadow space and stack alignment while resolving
-the original function, restore the original stack, then tail-jump. We do not guess
-the C++ signatures of those exports. CreateInterface uses its conventional Source
-factory signature and returns Valve's pointer/result unchanged. Original DLL
-resolution uses an absolute sibling path and checks all six exports.
+The proxy forwards five entry points through x64 assembly thunks, preserving
+argument registers, floating-point registers, stack arguments, alignment and
+unwind metadata. CreateInterface returns Valve's pointer/result unchanged.
+Resolution uses an absolute sibling path and checks all six exports.
 
-DllMain only records the module handle. Loading the original or add-on libraries,
-parsing manifests and running callbacks happen lazily on exported calls. Add-ons
-start after the first original CreateInterface returns. The runtime and loaded
-modules have process lifetime. There is no detour, executable instruction patch,
-code injection into an existing process, network service or editor-memory write
-in this version. The installer replaces the editor module with the proxy and
-preserves the original byte-for-byte.
+DllMain only records the module handle. Libraries, manifests and callbacks are
+loaded after the original factory returns. The runtime and loaded add-on modules
+have process lifetime. The installer uses a proxy DLL and preserves the original
+byte-for-byte; it does not patch executable instructions or inject into a running
+process.
 
-This is an unofficial extension point. Finding `ToolSystem2_001`,
-`EventMapDocumentModified_t`, undo-system names and Qt types in the installed DLL
-is evidence for investigation, not a recovered editor SDK. A successful loader
-test is not proof that geometry can be manipulated safely.
+A nonblocking observation guard prevents recursive initialization/event dispatch.
+A nested call, including one from a worker joined by an add-on callback, still
+reaches Valve without waiting on the add-on. Observations may be skipped while
+another callback is running. The default proxy reports `tools.factory.request`
+for Asset Browser interface requests; it does not observe every Workshop Tools
+module or expose document changes.
 
-The installer accepts only listed original SHA256 hashes and exact export
-names/ordinals on x64. It refuses existing unowned backups, externally changed
-files and installation while CS2 runs. Uninstall also checks hashes. Steam may
-replace the proxy during an update; inspect before reinstalling, never restore an
-old Hammer DLL over a newly updated one. The remaining native ABI and dependencies
-still require testing against each supported build.
+The old Hammer proxy remains a build/test fixture for migration and regression
+coverage. It is not included in new distributions or installed alongside the
+Asset Browser proxy. Legacy installation records without a module field still
+restore Hammer correctly. Existing `tools/hammer-addons` folders and ABI 1
+add-ons keep their identities and layout.
 
-## Next milestones
+## Shared manager
 
-1. Recover the minimum document/selection interface for one supported Hammer build.
-2. Read a selected entity's stable identity and transform; apply a transform as a
-   native undoable transaction on the editor thread; save/reopen and verify it.
-3. Synchronize that transaction between two independent Hammer instances, with
-   stable IDs, ordered operations and suppression of echoed remote changes.
-4. Add participant cursors/cameras, object ownership during edits, reconnect
-   snapshots, conflict handling, per-user undo and mesh topology transactions.
-5. Build immutable session revisions and distribute the same compiled map/assets
-   for a shared playtest. The old mapping prototype demonstrated file/compiler
-   workflows but did not expose Hammer's unsaved document.
+The UI DLL uses public Qt 5.15.2 Widgets APIs matching the supported tools build.
+A worker retries UI startup for up to 60 seconds if Qt or QApplication is not
+ready yet. Widget creation is queued onto the Qt application thread.
 
-The loader API should expose only verified capabilities. Unsupported editor builds
-must not receive guessed pointers or offsets. Editor integration belongs in a
-small version-specific adapter; networking and add-ons should use a stable API.
+The controller discovers visible Asset Browser, Hammer and Source 2 Tools
+QMainWindows. Each supported window owns one dock and menu. Panels close and
+reopen independently, refresh from the same runtime, and are recreated with
+their parent editor. Unrelated windows and dialogs are left alone. At present,
+live verification covers Asset Browser and Hammer.
+
+A private C bridge copies JSON status snapshots; no Qt or STL ownership crosses
+DLL boundaries. Refreshes skip a busy callback lock rather than blocking the UI.
+Qt runtime DLLs are neither packaged nor replaced. The public SDK has not yet
+exposed panel registration to add-ons.
+
+## Compatibility and development
+
+Installation checks module-specific original SHA256 hashes, export names,
+ordinals and x64 architecture. It refuses unknown builds, existing backups,
+external changes and installation while CS2 runs. Uninstall restores only the
+verified original for the recorded module. Steam updates require re-inspection.
+
+The framework roadmap is:
+1. Improve the shared manager and add-on diagnostics.
+2. Define UI and command registration with explicit lifetime/thread contracts.
+3. Add dependency, capability and version negotiation.
+4. Validate editor adapters, starting with Hammer document/selection operations
+   and native undoable transactions.
+5. Establish a lifecycle protocol before implementing native hot reload.
+
+Finding interface names or Qt types in a binary does not establish a supported
+editor SDK. Only verified interfaces belong in adapters; do not guess vtables,
+document layouts or offsets. Multiplayer session behavior belongs in its own
+project using the capabilities exposed by this framework.
 
 ## References
 
-- Local `game/bin/sdkenginetools.txt` registers `tools/hammer.dll`.
-- Local exports: BinaryProperties_GetValue (1), CreateInterface (2),
-  ExtractModuleMetadata (3), GetResourceManifestCount (4), GetResourceManifests (5),
-  InstallSchemaBindings (6). `scripts/loader.py inspect` reproduces this inspection.
+- Local `game/bin/win64/assetbrowser.dll`: the six exports and module hash are
+  recorded in `compatibility.json`; `loader.py inspect` reproduces them.
+- Local `game/bin/sdkenginetools.txt` registers editor modules such as Hammer.
 - [Microsoft DLL initialization guidance](https://learn.microsoft.com/en-us/windows/win32/dlls/dynamic-link-library-best-practices)
 - [Microsoft x64 calling convention](https://learn.microsoft.com/en-us/cpp/build/x64-calling-convention)
+- [Qt QDockWidget API](https://doc.qt.io/qt-5/qdockwidget.html)
+- [Qt queued invocation](https://doc.qt.io/qt-5/qmetaobject.html#invokeMethod)

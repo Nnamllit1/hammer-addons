@@ -5,7 +5,29 @@
       "name": "CS2 Hammer inspected 2026-09-07",
       "sha256": "b4755b0a909d0d19ca35f14346643765b32eb4bc18951a777991549ce913dd78",
       "machine": 34404,
-      "exports": ["BinaryProperties_GetValue", "CreateInterface", "ExtractModuleMetadata", "GetResourceManifestCount", "GetResourceManifests", "InstallSchemaBindings"]
+      "exports": [
+        "BinaryProperties_GetValue",
+        "CreateInterface",
+        "ExtractModuleMetadata",
+        "GetResourceManifestCount",
+        "GetResourceManifests",
+        "InstallSchemaBindings"
+      ],
+      "module": "hammer"
+    },
+    {
+      "name": "CS2 Asset Browser inspected 2026-09-08",
+      "module": "assetbrowser",
+      "sha256": "eeb93ce111642027ffd91d6ae6bed4eae7973b70d29e74d64ba80ba9e714b3c8",
+      "machine": 34404,
+      "exports": [
+        "BinaryProperties_GetValue",
+        "CreateInterface",
+        "ExtractModuleMetadata",
+        "GetResourceManifestCount",
+        "GetResourceManifests",
+        "InstallSchemaBindings"
+      ]
     }
   ]
 }

@@ -19,13 +19,33 @@ if (Test-Path -LiteralPath $cache) {
         Move-Item -LiteralPath $sourceTree -Destination $savedTree
     }
 }
-& $cmake -S $PSScriptRoot -B "$PSScriptRoot\build\native" -G $generator -A x64
+& python "$PSScriptRoot\scripts\fetch-qt.py" --cmake $cmake
+if ($LASTEXITCODE) { exit $LASTEXITCODE }
+$qt = Join-Path $PSScriptRoot 'build\deps\5.15.2\msvc2019_64'
+& $cmake -S $PSScriptRoot -B "$PSScriptRoot\build\native" -G $generator -A x64 "-DCMAKE_PREFIX_PATH=$qt"
 if ($LASTEXITCODE) { exit $LASTEXITCODE }
 & $cmake --build "$PSScriptRoot\build\native" --config $Configuration --parallel
 if ($LASTEXITCODE) { exit $LASTEXITCODE }
 & $cmake --install "$PSScriptRoot\build\native" --config $Configuration --prefix "$PSScriptRoot\dist"
 if ($LASTEXITCODE) { exit $LASTEXITCODE }
+# Retire the prior generated distribution entry point; only Asset Browser is installed.
+$legacyProxy = Join-Path $PSScriptRoot 'dist\hammer.dll'
+if (Test-Path -LiteralPath $legacyProxy) { Remove-Item -LiteralPath $legacyProxy -Force }
 if ($Test) {
+    $savedPath = $env:PATH
+    $savedPlatform = $env:QT_QPA_PLATFORM
+    $savedPlugins = $env:QT_PLUGIN_PATH
+    try {
+        $env:PATH = "$qt\bin;" + $env:PATH
+        $env:QT_QPA_PLATFORM = 'offscreen'
+        $env:QT_PLUGIN_PATH = "$qt\plugins"
+        & "$PSScriptRoot\build\native\$Configuration\ui_test.exe"
+        if ($LASTEXITCODE) { exit $LASTEXITCODE }
+    } finally {
+        $env:PATH = $savedPath
+        $env:QT_QPA_PLATFORM = $savedPlatform
+        $env:QT_PLUGIN_PATH = $savedPlugins
+    }
     & python "$PSScriptRoot\scripts\test-loader.py" --bin "$PSScriptRoot\build\native\$Configuration"
     if ($LASTEXITCODE) { exit $LASTEXITCODE }
 }

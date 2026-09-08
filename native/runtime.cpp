@@ -68,7 +68,7 @@ Summary Runtime::start() {
     started_ = true;
     Summary result;
     if (!plain_path(root_)) throw std::runtime_error("loader directory contains a reparse point");
-    if (fs::exists(root_ / "disabled")) { log("disabled by marker file"); return result; }
+    if (fs::exists(root_ / "disabled")) { notice_ = "Add-ons disabled by the global marker file. Remove it and restart Workshop Tools to load add-ons."; log("disabled by marker file"); return result; }
     fs::path directory = root_ / "addons";
     if (!fs::exists(directory)) { log("no addons directory"); return result; }
     if (!plain_path(directory)) throw std::runtime_error("addons directory contains a reparse point");
@@ -76,14 +76,18 @@ Summary Runtime::start() {
     for (const auto& item : fs::directory_iterator(directory)) if (item.is_directory()) paths.push_back(item.path());
     std::sort(paths.begin(), paths.end());
     for (const auto& path : paths) {
+        statuses_.push_back({path.filename().string(), "", "Failed", ""});
+        auto& status = statuses_.back();
         try {
             const auto data = manifest(path / "addon.ini");
+            status.version = data.at("version");
             if (data.at("id") != path.filename().string()) throw std::runtime_error("id must equal folder name");
-            if (data.at("enabled") == "false") { ++result.disabled; continue; }
+            if (data.at("enabled") == "false") { status.state = "Disabled"; status.detail = "Disabled in addon.ini"; ++result.disabled; continue; }
             const auto entry = fs::absolute(path / data.at("entry"));
             if (!plain_path(entry)) throw std::runtime_error("DLL path contains a reparse point");
             auto addon = std::make_unique<Addon>();
             addon->owner = this;
+            addon->status_index = statuses_.size() - 1;
             addon->id = data.at("id");
             const auto utf8 = fs::absolute(path).u8string();
             addon->directory.assign(utf8.begin(), utf8.end());
@@ -105,12 +109,16 @@ Summary Runtime::start() {
             current->host = {sizeof(HA_HostV1), HA_ABI_VERSION, capabilities, current, addon_log, current->directory.c_str()};
             if (api->on_load(&current->host) != 1) throw std::runtime_error("on_load failed");
             current->active = true;
+            status.state = "Loaded";
+            status.detail = "Ready";
             ++result.loaded;
             log("loaded " + current->id + " " + data.at("version"));
         } catch (const std::exception& error) {
             ++result.rejected;
+            status.detail = error.what();
             log("rejected " + path.filename().string() + ": " + error.what());
         } catch (...) {
+            status.detail = "C++ exception";
             ++result.rejected;
             log("rejected " + path.filename().string() + ": C++ exception");
         }
@@ -122,15 +130,51 @@ void Runtime::event(const char* name, const char* value) {
     const HA_EventV1 event{sizeof(HA_EventV1), name, value};
     for (auto& addon : addons_) if (addon->active && addon->api->on_event) {
         try { addon->api->on_event(&event); }
-        catch (...) { addon->active = false; log("disabled event callback after C++ exception: " + addon->id); }
+        catch (...) { addon->active = false;
+            auto& status = statuses_[addon->status_index];
+            status.state = "Failed"; status.detail = "Event callback threw a C++ exception";
+            log("disabled event callback after C++ exception: " + addon->id); }
     }
 }
 void Runtime::shutdown() {
     std::lock_guard guard(callbacks_);
     for (auto it = addons_.rbegin(); it != addons_.rend(); ++it) if ((*it)->active) {
         (*it)->active = false;
+        statuses_[(*it)->status_index].state = "Stopped";
         try { if ((*it)->api->on_shutdown) (*it)->api->on_shutdown(); }
         catch (...) { log("shutdown callback threw: " + (*it)->id); }
     }
 }
+static std::string quote(const std::string& value) {
+    std::string out = "\"";
+    constexpr char hex[] = "0123456789abcdef";
+    for (unsigned char ch : value) {
+        if (ch == '"' || ch == '\\') { out += '\\'; out += ch; }
+        else if (ch < 32) { out += "\\u00"; out += hex[ch >> 4]; out += hex[ch & 15]; }
+        else out += ch;
+    }
+    return out + '"';
+}
+void Runtime::initialization_error(const std::string& error) {
+    std::lock_guard guard(callbacks_);
+    notice_ = "Add-on initialization failed: " + error;
+    log(notice_);
+}
+std::string Runtime::status_json() {
+    // The UI must not block behind an add-on waiting for the editor thread.
+    std::unique_lock guard(callbacks_, std::try_to_lock);
+    if (!guard.owns_lock()) return {};
+    const auto path = fs::absolute(root_ / "addons").u8string();
+    std::string out = "{\"directory\":" + quote(std::string(path.begin(), path.end())) +
+        ",\"notice\":" + quote(notice_) + ",\"addons\":[";
+    bool first = true;
+    for (const auto& status : statuses_) {
+        if (!first) out += ',';
+        first = false;
+        out += "{\"id\":" + quote(status.id) + ",\"version\":" + quote(status.version) +
+            ",\"state\":" + quote(status.state) + ",\"detail\":" + quote(status.detail) + "}";
+    }
+    return out + "]}";
+}
+
 }

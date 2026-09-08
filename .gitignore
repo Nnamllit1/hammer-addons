@@ -15,3 +15,6 @@ wheels/
 projects/
 h2mcp.local.json
 .pytest_cache/
+
+# Agent guidance stays in local memory
+/AGENTS.md

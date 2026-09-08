@@ -63,17 +63,24 @@ def pe_info(path):
 
 def validate_exports(info):
     if info['machine'] != 0x8664 or info['exports'] != {name: i + 1 for i, name in enumerate(EXPORTS)}:
-        raise ValueError('Hammer export names, ordinals or architecture do not match this proxy')
+        raise ValueError('Tools export names, ordinals or architecture do not match this proxy')
 
 
-def paths(cs2):
+def paths(cs2, module=None):
     tools = plain(cs2 / 'game/bin/win64/tools')
-    return tools, tools / 'hammer.dll', tools / 'hammer_original.dll', tools / 'hammer-addons/install.json'
+    state = plain(tools / 'hammer-addons/install.json')
+    if module is None:
+        # Pre-Asset-Browser installation records did not have a module field.
+        module = json.loads(state.read_text()).get('module', 'hammer') if state.exists() else 'assetbrowser'
+    if module not in ('hammer', 'assetbrowser'):
+        raise ValueError('Unknown module in installation record')
+    folder = tools if module == 'hammer' else tools.parent
+    return tools, plain(folder / (module + '.dll')), plain(folder / (module + '_original.dll')), state
 
 
 def inspect(cs2):
     tools, target, original, state = paths(cs2)
-    result = {'tools': str(tools), 'installed': state.exists(), 'hammer': pe_info(target)}
+    result = {'tools': str(tools), 'installed': state.exists(), 'module': target.stem, 'binary': pe_info(target)}
     if state.exists():
         record = json.loads(plain(state).read_text())
         result['proxy_matches'] = sha(target) == record['proxy_sha256']
@@ -104,16 +111,16 @@ def atomic(path, data):
 
 
 def install(cs2, distribution, apply=False, profiles=None):
-    tools, target, original, state = paths(cs2)
+    tools, target, original, state = paths(cs2, 'assetbrowser')
     plain(target)
-    if state.exists() or original.exists():
+    if state.exists() or original.exists() or plain(tools / 'hammer_original.dll').exists():
         raise ValueError('An installation or backup already exists; inspect and uninstall before reinstalling')
     info = pe_info(target)
     validate_exports(info)
     profiles = profiles if profiles is not None else json.loads((ROOT / 'compatibility.json').read_text())['profiles']
-    if info['sha256'] not in {p['sha256'] for p in profiles}:
-        raise ValueError('Unrecognized Hammer build. Run inspect; validate a new compatibility profile before installing')
-    proxy = plain(distribution / 'hammer.dll')
+    if info['sha256'] not in {p['sha256'] for p in profiles if p.get('module') == 'assetbrowser'}:
+        raise ValueError('Unrecognized Asset Browser build. Run inspect; validate a new compatibility profile before installing')
+    proxy = plain(distribution / 'assetbrowser.dll')
     validate_exports(pe_info(proxy))
     if sha(proxy) == info['sha256']:
         raise ValueError('Distribution contains the original DLL instead of the loader')
@@ -125,15 +132,17 @@ def install(cs2, distribution, apply=False, profiles=None):
         plain(file)
         if file.is_file():
             relative = file.relative_to(source)
-            if relative.parts[0] != 'addons':
+            if relative.parts[0] != 'addons' and relative.as_posix() != 'hammer_addons_ui.dll':
                 raise ValueError('Unexpected distribution file')
             destination = plain(tools / 'hammer-addons' / relative)
             if destination.exists() and sha(destination) != sha(file):
                 raise ValueError(f'Installed add-on differs; preserving {destination}')
             copies.append((file, destination))
-    plan = {'action': 'install', 'target': str(target), 'backup': str(original),
+    plan = {'action': 'install', 'module': 'assetbrowser', 'target': str(target), 'backup': str(original),
             'original_sha256': info['sha256'], 'proxy_sha256': sha(proxy),
-            'addon_files': [str(b) for _, b in copies], 'applied': False}
+            'addon_files': [str(b) for _, b in copies],
+            'ui_sha256': sha(source / 'hammer_addons_ui.dll') if (source / 'hammer_addons_ui.dll').exists() else None,
+            'applied': False}
     if not apply:
         return plan
     require_closed()
@@ -144,12 +153,12 @@ def install(cs2, distribution, apply=False, profiles=None):
         stream.flush()
         os.fsync(stream.fileno())
     if sha(original) != info['sha256']:
-        raise ValueError('Original backup verification failed; Hammer was not replaced')
+        raise ValueError('Original backup verification failed; the tools DLL was not replaced')
     atomic(state, json.dumps(plan, indent=2).encode())
     for file, destination in copies:
         atomic(destination, file.read_bytes())
     if sha(target) != info['sha256']:
-        raise ValueError('Hammer changed during installation; refusing to overwrite it')
+        raise ValueError('Tools DLL changed during installation; refusing to overwrite it')
     atomic(target, proxy.read_bytes())
     plan['applied'] = True
     atomic(state, json.dumps(plan, indent=2).encode())
@@ -157,18 +166,22 @@ def install(cs2, distribution, apply=False, profiles=None):
 
 
 def uninstall(cs2, apply=False):
-    _, target, original, state = paths(cs2)
+    tools, target, original, state = paths(cs2)
     record = json.loads(plain(state).read_text())
     if sha(plain(original)) != record['original_sha256']:
         raise ValueError('Original DLL backup has changed; refusing restoration')
     if sha(plain(target)) not in (record['proxy_sha256'], record['original_sha256']):
-        raise ValueError('Hammer was updated or replaced externally. Refusing to overwrite that DLL with an older backup')
+        raise ValueError('Tools DLL was updated or replaced externally. Refusing to overwrite that DLL with an older backup')
     result = {'action': 'uninstall', 'target': str(target), 'preserve_addons': True, 'applied': False}
     if apply:
         require_closed()
         atomic(target, original.read_bytes())
         if sha(target) != record['original_sha256']:
             raise ValueError('Restoration verification failed; backup retained')
+        ui = plain(tools / 'hammer-addons/hammer_addons_ui.dll')
+        # Remove only the unchanged UI binary this installation owns. User add-ons stay.
+        if record.get('ui_sha256') and ui.exists() and sha(ui) == record['ui_sha256']:
+            ui.unlink()
         state.unlink()
         original.unlink()
         result['applied'] = True
@@ -179,7 +192,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', choices=['inspect', 'install', 'uninstall'])
     parser.add_argument('--cs2', type=Path, required=True, help='CS2 installation root containing game/')
-    parser.add_argument('--dist', type=Path, default=ROOT if (ROOT / 'hammer.dll').exists() else ROOT / 'dist')
+    parser.add_argument('--dist', type=Path, default=ROOT if (ROOT / 'assetbrowser.dll').exists() else ROOT / 'dist')
     parser.add_argument('--apply', action='store_true', help='Apply the displayed operation; default is preview')
     args = parser.parse_args()
     try:

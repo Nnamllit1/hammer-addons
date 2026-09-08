@@ -5,6 +5,7 @@ import subprocess
 import tempfile
 import importlib.util
 import re
+import json
 from pathlib import Path
 
 
@@ -32,6 +33,14 @@ def main():
             assert result.returncode == expected, result.stdout + result.stderr
             for message in messages:
                 assert message in result.stdout, result.stdout
+            snapshot = json.loads(next(line[7:] for line in result.stdout.splitlines() if line.startswith('STATUS ')))
+            states = [addon['state'] for addon in snapshot['addons']]
+            if 'disabled by marker' in result.stdout:
+                assert snapshot['notice'] and not states, snapshot
+            else:
+                assert states.count('Loaded') == int(re.search(r'loaded=(\d+)', result.stdout)[1]), snapshot
+                assert states.count('Failed') == int(re.search(r'rejected=(\d+)', result.stdout)[1]), snapshot
+                assert states.count('Disabled') == int(re.search(r'disabled=(\d+)', result.stdout)[1]), snapshot
             count += 1
 
         run(0, 'loaded=1 rejected=0', 'host.test: standalone', 'hello: shutdown')
@@ -63,6 +72,37 @@ def main():
         assert 'All six exports forwarded' in result.stdout, result.stdout
         count += 1
         print(result.stdout)
+        recursive = package / 'addons/reentrant'
+        recursive.mkdir()
+        shutil.copy2(binaries / 'reentrant.dll', recursive)
+        (recursive / 'addon.ini').write_text(original.replace('hello', 'reentrant'))
+        result = subprocess.run([str(binaries / 'proxy_test.exe'), str(directory / 'hammer.dll')],
+                                capture_output=True, text=True, timeout=20)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert result.stdout.count('reentrant on_load passed') == 1, result.stdout
+        assert result.stdout.count('reentrant on_event passed') == 2, result.stdout
+        count += 1
+        print('Reentrant factory calls passed in on_load/on_event, on the callback thread and a joined worker.')
+        shutil.rmtree(recursive)  # Test-owned directory, after the fixture process has exited.
+        # The general entry point must load add-ons before any Hammer DLL exists.
+        browser_dir = directory / 'browser-only'
+        browser_package = browser_dir / 'tools/hammer-addons'
+        shutil.copytree(package, browser_package)
+        shutil.copy2(binaries / 'assetbrowser.dll', browser_dir)
+        shutil.copy2(binaries / 'hammer_original.dll', browser_dir / 'assetbrowser_original.dll')
+        nested = browser_package / 'addons/reentrant'
+        nested.mkdir()
+        shutil.copy2(binaries / 'reentrant.dll', nested)
+        (nested / 'addon.ini').write_text(original.replace('hello', 'reentrant'))
+        result = subprocess.run([str(binaries / 'proxy_test.exe'), str(browser_dir / 'assetbrowser.dll')],
+                                capture_output=True, text=True, timeout=20)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert result.stdout.count('reentrant on_load passed') == 1, result.stdout
+        assert result.stdout.count('reentrant on_event passed') == 2, result.stdout
+        assert 'hello: tools.factory.request: ToolSystem2_001' in result.stdout, result.stdout
+        assert 'hammer.factory.request' not in result.stdout, result.stdout
+        count += 1
+        print('Asset Browser-only bootstrap and reentrant forwarding passed without Hammer.')
         spec = importlib.util.spec_from_file_location('loader', root / 'scripts/loader.py')
         loader = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(loader)
@@ -71,27 +111,33 @@ def main():
         tools = fake_cs2 / 'game/bin/win64/tools'
         tools.mkdir(parents=True)
         shutil.copy2(binaries / 'hammer_original.dll', tools / 'hammer.dll')
-        before = (tools / 'hammer.dll').read_bytes()
-        profiles = [{'sha256': loader.sha(tools / 'hammer.dll')}]
+        hammer_before = (tools / 'hammer.dll').read_bytes()
+        shutil.copy2(binaries / 'hammer_original.dll', tools.parent / 'assetbrowser.dll')
+        before = (tools.parent / 'assetbrowser.dll').read_bytes()
+        profiles = [{'module': 'assetbrowser', 'sha256': loader.sha(tools.parent / 'assetbrowser.dll')}]
         preview = loader.install(fake_cs2, root / 'dist', profiles=profiles)
-        assert not preview['applied'] and not (tools / 'hammer_original.dll').exists()
+        assert not preview['applied'] and not (tools.parent / 'assetbrowser_original.dll').exists()
         loader.install(fake_cs2, root / 'dist', apply=True, profiles=profiles)
-        assert (tools / 'hammer_original.dll').read_bytes() == before
+        assert (tools.parent / 'assetbrowser_original.dll').read_bytes() == before
         assert loader.inspect(fake_cs2)['proxy_matches']
+        assert loader.inspect(fake_cs2)['module'] == 'assetbrowser'
+        assert (tools / 'hammer.dll').read_bytes() == hammer_before
+        assert (tools / 'hammer-addons/hammer_addons_ui.dll').exists()
         count += 1
-        installed = (tools / 'hammer.dll').read_bytes()
-        (tools / 'hammer.dll').write_bytes(b'external update')
+        installed = (tools.parent / 'assetbrowser.dll').read_bytes()
+        (tools.parent / 'assetbrowser.dll').write_bytes(b'external update')
         try:
             loader.uninstall(fake_cs2, apply=True)
             raise AssertionError('must refuse to overwrite external update')
         except ValueError as error:
             assert 'externally' in str(error)
-        assert (tools / 'hammer.dll').read_bytes() == b'external update'
-        (tools / 'hammer.dll').write_bytes(installed)
+        assert (tools.parent / 'assetbrowser.dll').read_bytes() == b'external update'
+        (tools.parent / 'assetbrowser.dll').write_bytes(installed)
         count += 1
         loader.uninstall(fake_cs2, apply=True)
-        assert (tools / 'hammer.dll').read_bytes() == before
-        assert not (tools / 'hammer_original.dll').exists()
+        assert (tools.parent / 'assetbrowser.dll').read_bytes() == before
+        assert not (tools.parent / 'assetbrowser_original.dll').exists()
+        assert not (tools / 'hammer-addons/hammer_addons_ui.dll').exists()
         assert (tools / 'hammer-addons/addons/hello/hello.dll').exists()
         count += 1
         try:
@@ -99,11 +145,30 @@ def main():
             raise AssertionError('must reject an unknown binary')
         except ValueError as error:
             assert 'Unrecognized' in str(error)
-        assert (tools / 'hammer.dll').read_bytes() == before
+        assert (tools.parent / 'assetbrowser.dll').read_bytes() == before
         count += 1
         # The distributed management tool must work without the source checkout.
         packaged = subprocess.run(['python', str(root / 'dist/scripts/loader.py'), 'inspect', '--cs2', str(fake_cs2)], capture_output=True, text=True, timeout=15)
         assert packaged.returncode == 0 and '"installed": false' in packaged.stdout, packaged.stdout + packaged.stderr
+        count += 1
+        # Migration restores the old Hammer proxy using its field-less state.
+        shutil.copy2(binaries / 'hammer_original.dll', tools / 'hammer_original.dll')
+        shutil.copy2(binaries / 'hammer.dll', tools / 'hammer.dll')
+        old_state = tools / 'hammer-addons/install.json'
+        old_state.write_text(json.dumps({'original_sha256': loader.sha(tools / 'hammer_original.dll'),
+                                        'proxy_sha256': loader.sha(tools / 'hammer.dll')}))
+        assert loader.inspect(fake_cs2)['module'] == 'hammer'
+        try:
+            loader.install(fake_cs2, root / 'dist', apply=True, profiles=profiles)
+            raise AssertionError('must not install a second loader over a legacy installation')
+        except ValueError as error:
+            assert 'already exists' in str(error)
+        loader.uninstall(fake_cs2, apply=True)
+        assert (tools / 'hammer.dll').read_bytes() == hammer_before
+        loader.install(fake_cs2, root / 'dist', apply=True, profiles=profiles)
+        assert loader.inspect(fake_cs2)['module'] == 'assetbrowser'
+        assert (tools / 'hammer.dll').read_bytes() == hammer_before
+        loader.uninstall(fake_cs2, apply=True)
         count += 1
         # Compile and load a generated third-party add-on against only the public SDK.
         generated = directory / 'generated'

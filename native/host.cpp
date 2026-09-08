@@ -6,6 +6,7 @@ int wmain(int argc, wchar_t** argv) {
         ha::Runtime runtime{argv[1]};
         auto result = runtime.start();
         runtime.event("host.test", "standalone");
+        std::cout << "STATUS " << runtime.status_json() << '\n';
         runtime.shutdown();
         std::cout << "SUMMARY loaded=" << result.loaded << " rejected=" << result.rejected << " disabled=" << result.disabled << '\n';
         return result.rejected ? 1 : 0;

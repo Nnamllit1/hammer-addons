@@ -37,31 +37,44 @@ Available host capabilities:
 | Flag | Available functionality |
 | --- | --- |
 | `HA_CAP_LOGGING` | `host->log(context, message)` and the add-on directory |
-| `HA_CAP_FACTORY_EVENTS` | `hammer.factory.request`, with the requested interface name as value |
+| `HA_CAP_FACTORY_EVENTS` | `tools.factory.request`, with the requested interface name as value |
 
-These events run after Valve's `CreateInterface` returns. They are observations
-of interface requests, **not document-change events or proof that the editor UI
+The Asset Browser entry point emits these events after Valve's
+`CreateInterface` returns. They are observations of interface requests, **not document-change events or proof that the editor UI
 is initialized**. `host.test` is emitted only by the standalone test host.
-No map editing, cursor, selection, Qt UI or multiplayer API is implemented yet.
+The loader has shared status panels in Asset Browser and Hammer. No map editing,
+cursor, selection or add-on UI registration API is implemented yet.
 
 Callbacks are serialized on the thread invoking the factory. That thread is not
-guaranteed to be the editor UI thread. Do not block it, call back into the factory,
-or manipulate undocumented editor objects from these callbacks. Host logging is
-thread-safe. No C++ objects, STL containers, exceptions or ownership cross the ABI.
+guaranteed to be the editor UI thread. Do not block it or manipulate undocumented
+editor objects from these callbacks. Calling the proxy factory from a callback
+still forwards the request to Valve and preserves its pointer/result. A
+process-wide, nonblocking observation guard suppresses additional notifications
+and initialization while add-on work is already running, including calls made
+by another thread. Factory events are therefore best-effort observations, not
+a complete trace of every request. This prevents loader-induced recursion and
+initialization deadlocks; it cannot fix a loop entirely inside an add-on.
+Host logging is thread-safe. No C++ objects, STL containers, exceptions or ownership cross the ABI.
 All event strings are borrowed. The host table lives for the runtime's lifetime.
 
 DLLs remain loaded until process exit; changing an add-on requires restarting
-Hammer. Explicit `on_shutdown` is available in the standalone host, but is not
+Workshop Tools. Explicit `on_shutdown` is available in the standalone host, but is not
 called from DLL_PROCESS_DETACH or guaranteed at editor termination. Native hot
 reload requires a future protocol for detaching hooks, callbacks and threads.
 Flush important state during normal execution.
 
 Set `enabled=false` to disable an add-on, or create `hammer-addons/disabled` to
-disable all add-ons while retaining original Hammer forwarding. Restart Hammer.
-Diagnostics go to `hammer-addons/loader.log`, stdout and OutputDebugString.
+disable all add-ons while retaining original tools forwarding. Restart Workshop Tools.
+The Workshop Add-ons dock lists loaded, disabled and failed add-ons with reasons.
+Its top menu reopens the dock and opens the add-ons folder. Diagnostics also go to `hammer-addons/loader.log`, stdout and OutputDebugString.
 
 Add-ons execute native code with the editor's permissions. ABI checks do not
 sandbox DLLs, and their DllMain runs before HA_Query validation. Missing DLLs,
 invalid manifests, incompatible APIs and ordinary C++ callback exceptions are
 reported; access violations or memory corruption can still crash the editor.
 Dependencies are loaded from the add-on DLL's directory and Windows System32.
+
+The legacy Hammer proxy emitted `hammer.factory.request`. New installations
+emit `tools.factory.request` from Asset Browser. Neither is a document-change
+event. The native ABI remains version 1; add-ons filtering event names should
+handle the new name as appropriate.

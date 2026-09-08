@@ -1,0 +1,8 @@
+LIBRARY assetbrowser
+EXPORTS
+    BinaryProperties_GetValue=HAForward0 @1
+    CreateInterface=HACreateInterface @2
+    ExtractModuleMetadata=HAForward2 @3
+    GetResourceManifestCount=HAForward3 @4
+    GetResourceManifests=HAForward4 @5
+    InstallSchemaBindings=HAForward5 @6
