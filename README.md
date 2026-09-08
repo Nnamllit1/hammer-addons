@@ -1,12 +1,15 @@
 # Hammer Addons
 
 A native **add-on framework for CS2 Workshop Tools**, with a versioned C SDK
-and a shared add-on manager. Hammer remains the main editor focus, while the
-framework starts in the Asset Browser and can support tools beyond map editing.
+and a shared add-on manager. It loads once through Asset Browser and hosts
+add-ons in the Workshop Tools process.
 
-This project provides add-on loading, lifecycle callbacks, diagnostics and the
-foundation for verified editor integrations. **Hammer multiplayer will be a
-separate project**, built on this framework once it is mature enough.
+The framework provides native DLL loading, lifecycle callbacks, logging,
+interface-request observations, and a manager for viewing add-on status and
+filtering by supported tool. Use it to install compatible add-ons or build your
+own against the included SDK.
+
+This is an unofficial project, independent of Valve.
 
 ## Build
 
@@ -35,13 +38,21 @@ python scripts/loader.py install --cs2 "E:\SteamLibrary\steamapps\common\Counter
 
 Omit `--apply` to preview. The installer checks the supported Asset Browser
 binary, backs it up byte-for-byte, then installs the proxy. Start Workshop Tools
-normally: the **Workshop Add-ons** panel appears in the **Asset Browser**, before
-you open Hammer. It also appears inside Hammer when you open the editor.
+normally: the **Workshop Add-ons** panel appears in the **Asset Browser**.
+In Hammer, open it through **Help > Workshop Add-ons > Show add-ons**.
 
 The panel shows **Loader active**, loaded/disabled/failed counts, and each
 add-on's version and status. Dock, float or close each panel independently.
-Use **Workshop Add-ons > Show add-ons** to reopen it, or **Open add-ons folder**
-to access your installed add-ons. Both windows display the same runtime state.
+In Asset Browser, use **Workshop Add-ons > Show add-ons** to reopen it.
+In Hammer, the menu lives under **Help**, with no extra top-level menu or
+automatically opened dock. Both menus also offer **About Hammer Addons**, which
+opens the About tab with the framework version and project link.
+**Open add-ons folder** opens your installed add-ons.
+
+The **Tool** filter and **Tools** column distinguish Asset Browser, Hammer,
+ModelDoc / Model Viewer, Material Editor and Particle Editor add-ons. Hammer
+defaults to its own filter. Counts reflect the displayed list; changing a filter
+does not load or unload DLLs.
 
 ```text
 game/bin/win64/
@@ -88,7 +99,7 @@ Only module-specific builds in `compatibility.json` are accepted.
 ## Write an add-on
 
 ```powershell
-python scripts/new-addon.py my_addon --output ../my_addon
+python scripts/new-addon.py my_addon --output ../my_addon --tools hammer,modeldoc
 cmake -S ../my_addon -B ../my_addon/build -A x64 -DHAMMER_ADDONS_SDK="$PWD/sdk"
 cmake --build ../my_addon/build --config Release
 cmake --install ../my_addon/build --config Release --prefix ../my_addon/package
@@ -97,20 +108,22 @@ cmake --install ../my_addon/build --config Release --prefix ../my_addon/package
 Copy `package/my_addon/` into the loader's `addons/` directory. See the
 [format and API contract](docs/ADDON_FORMAT.md), [sample](addons/hello/hello.cpp)
 and [C header](sdk/include/hammer_addons.h). ABI 1 add-ons remain compatible;
-the Asset Browser entry point emits `tools.factory.request` observations.
+add an optional `tools=asset_browser,hammer` manifest field to declare
+supported tools, or `tools=all` for a general add-on. Untagged older add-ons
+appear as **Unspecified**. These tags describe intended tools for discovery;
+they do not assert that an editor is open or delay DLL startup.
+The Asset Browser entry point emits `tools.factory.request` observations.
 
-## Framework direction
+## Current capabilities and limitations
 
-The next steps are a richer add-on manager, explicit UI/command registration,
-dependency and capability handling, and verified adapters for editor operations.
-Hammer integration remains a priority; other Workshop Tools can be supported
-through the same framework as their interfaces are validated.
+The manager is available in Asset Browser and through Hammer's Help menu.
+Tool tags identify an add-on's intended use; they do not provide editor APIs
+or imply that an integration exists for every listed tool.
 
-Document editing APIs, add-on-owned panels and hot reload are not implemented.
-Multiplayer, shared cursors, synchronization and networking belong in the
-separate future Hammer multiplayer project.
+The SDK currently exposes logging and factory-request observations. Document
+editing APIs, add-on-owned panels, command registration and hot reload are not
+implemented. Add-on changes require restarting Workshop Tools.
 
-See [architecture](docs/ARCHITECTURE.md) and [validation](VALIDATION.md) for the
-implemented behavior and test evidence. This is an unofficial project, not a
-Valve SDK. It replaces the retired h2mcp application; existing local map projects
-and add-on folder names are preserved.
+See the [API contract](docs/ADDON_FORMAT.md) for callback and threading rules,
+[architecture](docs/ARCHITECTURE.md) for implementation details, and
+[validation](VALIDATION.md) for tested builds and behavior.

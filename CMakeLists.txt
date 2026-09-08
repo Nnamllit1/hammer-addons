@@ -30,6 +30,7 @@ target_include_directories(reentrant PRIVATE sdk/include)
 find_package(Qt5 5.15.2 EXACT REQUIRED COMPONENTS Core Gui Widgets)
 add_library(hammer_addons_ui SHARED native/ui.cpp)
 target_link_libraries(hammer_addons_ui PRIVATE Qt5::Widgets)
+target_compile_definitions(hammer_addons_ui PRIVATE HA_VERSION="${PROJECT_VERSION}")
 # Qt's shared build uses the dynamic CRT.
 set_target_properties(hammer_addons_ui PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 add_executable(ui_test native/tests/ui_test.cpp)

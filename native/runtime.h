@@ -19,7 +19,7 @@ public:
     void initialization_error(const std::string& error);
     void log(const std::string& message);
 private:
-    struct Status { std::string id, version, state, detail; };
+    struct Status { std::string id, version, state, detail; std::vector<std::string> tools; };
     std::vector<Status> statuses_;
     std::string notice_;
     struct Addon {

@@ -1,6 +1,8 @@
 #include "qt_compat.h"
 #include "ui_bridge.h"
 #include <QApplication>
+#include <QComboBox>
+#include <QTabWidget>
 #include <QDesktopServices>
 #include <QDockWidget>
 #include <QHeaderView>
@@ -22,6 +24,18 @@
 
 namespace {
 std::atomic<bool> scheduled{false};
+static QString tool_label(const QString& id) {
+    if (id == "all") return QStringLiteral("All tools");
+    if (id == "asset_browser") return QStringLiteral("Asset Browser");
+    if (id == "hammer") return QStringLiteral("Hammer");
+    if (id == "modeldoc") return QStringLiteral("ModelDoc / Model Viewer");
+    if (id == "material_editor") return QStringLiteral("Material Editor");
+    if (id == "particle_editor") return QStringLiteral("Particle Editor");
+    return QStringLiteral("Unspecified");
+}
+static bool is_hammer(const QString& title) {
+    return title == "Hammer" || title.startsWith("Hammer -") || title.endsWith(" - Hammer");
+}
 
 class Panel final : public QObject {
     HA_UiHost host_;
@@ -31,6 +45,9 @@ class Panel final : public QObject {
     QLabel* notice_ = nullptr;
     QTreeWidget* rows_ = nullptr;
     QString directory_;
+    QComboBox* filter_ = nullptr;
+    QTabWidget* tabs_ = nullptr;
+    QJsonObject snapshot_;
 
     void open_folder() {
         if (!directory_.isEmpty()) QDesktopServices::openUrl(QUrl::fromLocalFile(directory_));
@@ -39,7 +56,27 @@ class Panel final : public QObject {
         auto* dock = new QDockWidget(QStringLiteral("Workshop Add-ons"), window);
         dock->setObjectName(QStringLiteral("HammerAddonsDock"));
         dock->setAllowedAreas(Qt::AllDockWidgetAreas);
-        auto* panel = new QWidget(dock);
+        tabs_ = new QTabWidget(dock);
+        tabs_->setObjectName(QStringLiteral("HammerAddonsTabs"));
+        auto* panel = new QWidget(tabs_);
+        tabs_->addTab(panel, QStringLiteral("Add-ons"));
+        auto* about = new QWidget(tabs_);
+        auto* aboutLayout = new QVBoxLayout(about);
+        auto* title = new QLabel(QStringLiteral("Hammer Addons " HA_VERSION), about);
+        title->setStyleSheet(QStringLiteral("font-size: 16px; font-weight: bold;"));
+        aboutLayout->addWidget(title);
+        auto* description = new QLabel(QStringLiteral(
+            "A shared add-on framework for CS2 Workshop Tools.\n\n"
+            "One loader serves Asset Browser and the editors in this tools session. "
+            "Hammer is the first editor focus.\n\n"
+            "This is an unofficial project, independent of Valve."), about);
+        description->setWordWrap(true);
+        aboutLayout->addWidget(description);
+        auto* link = new QLabel(QStringLiteral("<a href=\"https://github.com/Nnamllit1/hammer-addons\">Project and documentation</a>"), about);
+        link->setOpenExternalLinks(true);
+        aboutLayout->addWidget(link);
+        aboutLayout->addStretch();
+        tabs_->addTab(about, QStringLiteral("About"));
         auto* layout = new QVBoxLayout(panel);
         auto* heading = new QHBoxLayout;
         auto* active = new QLabel(QStringLiteral("Loader active"), panel);
@@ -53,6 +90,17 @@ class Panel final : public QObject {
         connect(folder, &QPushButton::clicked, this, [this] { open_folder(); });
         heading->addWidget(folder);
         layout->addLayout(heading);
+        auto* filtering = new QHBoxLayout;
+        filtering->addWidget(new QLabel(QStringLiteral("Tool:"), panel));
+        filter_ = new QComboBox(panel);
+        filter_->setObjectName(QStringLiteral("HammerAddonsFilter"));
+        filter_->addItem(QStringLiteral("All add-ons"), QString());
+        for (const auto& id : {"asset_browser", "hammer", "modeldoc", "material_editor", "particle_editor", "unspecified"})
+            filter_->addItem(tool_label(QString::fromLatin1(id)), QString::fromLatin1(id));
+        filtering->addWidget(filter_);
+        filtering->addStretch();
+        layout->addLayout(filtering);
+        connect(filter_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this] { render(); });
         notice_ = new QLabel(panel);
         notice_->setWordWrap(true);
         notice_->setTextFormat(Qt::PlainText);
@@ -60,7 +108,7 @@ class Panel final : public QObject {
         layout->addWidget(notice_);
         rows_ = new QTreeWidget(panel);
         rows_->setObjectName(QStringLiteral("HammerAddonsList"));
-        rows_->setHeaderLabels({QStringLiteral("Add-on"), QStringLiteral("Version"), QStringLiteral("Status"), QStringLiteral("Details")});
+        rows_->setHeaderLabels({QStringLiteral("Add-on"), QStringLiteral("Version"), QStringLiteral("Status"), QStringLiteral("Details"), QStringLiteral("Tools")});
         rows_->setRootIsDecorated(false);
         rows_->setAlternatingRowColors(true);
         rows_->setMinimumHeight(70);
@@ -70,19 +118,40 @@ class Panel final : public QObject {
         auto* help = new QLabel(QStringLiteral("Drop add-ons into the folder, then restart Workshop Tools. Edit addon.ini to enable or disable an add-on."), panel);
         help->setWordWrap(true);
         layout->addWidget(help);
-        dock->setWidget(panel);
+        dock->setWidget(tabs_);
         window->addDockWidget(Qt::BottomDockWidgetArea, dock);
-        window->resizeDocks({dock}, {190}, Qt::Vertical);
-        auto* menu = window->menuBar()->addMenu(QStringLiteral("Workshop Add-ons"));
+        window->resizeDocks({dock}, {250}, Qt::Vertical);
+        const bool hammer = is_hammer(window->windowTitle());
+        QMenu* menu = nullptr;
+        if (hammer) {
+            // Reuse Hammer's Help menu; avoid another top-level editor menu.
+            QMenu* helpMenu = nullptr;
+            for (auto* action : window->menuBar()->actions()) {
+                auto text = action->text();
+                text.remove('&');
+                if (action->menu() && text.compare(QStringLiteral("Help"), Qt::CaseInsensitive) == 0) {
+                    helpMenu = action->menu();
+                    break;
+                }
+            }
+            if (!helpMenu) helpMenu = window->menuBar()->addMenu(QStringLiteral("Help"));
+            menu = helpMenu->addMenu(QStringLiteral("Workshop Add-ons"));
+        } else menu = window->menuBar()->addMenu(QStringLiteral("Workshop Add-ons"));
         menu->setObjectName(QStringLiteral("HammerAddonsMenu"));
         auto* show = menu->addAction(QStringLiteral("Show add-ons"));
         show->setObjectName(QStringLiteral("HammerAddonsShow"));
         // Context is the dock, so callbacks disappear with the editor window.
-        connect(show, &QAction::triggered, dock, [dock] { dock->show(); dock->raise(); });
+        connect(show, &QAction::triggered, this, [this, dock] { tabs_->setCurrentIndex(0); dock->show(); dock->raise(); });
+        auto* aboutAction = menu->addAction(QStringLiteral("About Hammer Addons"));
+        aboutAction->setObjectName(QStringLiteral("HammerAddonsAbout"));
+        connect(aboutAction, &QAction::triggered, this, [this, dock] { tabs_->setCurrentIndex(1); dock->show(); dock->raise(); });
         connect(menu->addAction(QStringLiteral("Open add-ons folder")), &QAction::triggered, this, [this] { open_folder(); });
         dock_ = dock;
         previous_.clear();
-        dock->show();
+        if (hammer) {
+            filter_->setCurrentIndex(filter_->findData(QStringLiteral("hammer")));
+            dock->hide();
+        } else dock->show();
     }
     void tick() {
         if (!dock_) return;
@@ -97,24 +166,38 @@ class Panel final : public QObject {
         const auto document = QJsonDocument::fromJson(data, &error);
         if (error.error != QJsonParseError::NoError || !document.isObject()) return;
         previous_ = data;
-        const auto status = document.object();
+        snapshot_ = document.object();
+        render();
+    }
+    void render() {
+        const auto& status = snapshot_;
+        const auto selected = filter_->currentData().toString();
         directory_ = status.value(QStringLiteral("directory")).toString();
         rows_->clear();
         int loaded = 0, disabled = 0, failed = 0;
-        for (const auto& item : status.value(QStringLiteral("addons")).toArray()) {
+        const auto addons = status.value(QStringLiteral("addons")).toArray();
+        for (const auto& item : addons) {
             const auto addon = item.toObject();
+            const auto tools = addon.value(QStringLiteral("tools")).toArray();
+            const bool unspecified = tools.isEmpty();
+            if (!selected.isEmpty() && !(selected == "unspecified" ? unspecified :
+                tools.contains(selected) || tools.contains(QStringLiteral("all")))) continue;
+            QStringList labels;
+            for (const auto& tool : tools) labels.append(tool_label(tool.toString()));
+            if (labels.isEmpty()) labels.append(tool_label(QString()));
             const auto state = addon.value(QStringLiteral("state")).toString();
             loaded += state == QStringLiteral("Loaded");
             disabled += state == QStringLiteral("Disabled");
             failed += state == QStringLiteral("Failed");
             auto* row = new QTreeWidgetItem(rows_, {addon.value(QStringLiteral("id")).toString(),
-                addon.value(QStringLiteral("version")).toString(), state, addon.value(QStringLiteral("detail")).toString()});
+                addon.value(QStringLiteral("version")).toString(), state, addon.value(QStringLiteral("detail")).toString(), labels.join(QStringLiteral(", "))});
             row->setToolTip(3, row->text(3));
         }
         summary_->setText(QStringLiteral("%1 loaded  |  %2 disabled  |  %3 failed").arg(loaded).arg(disabled).arg(failed));
         auto notice = status.value(QStringLiteral("notice")).toString();
         if (notice.isEmpty() && rows_->topLevelItemCount() == 0)
-            notice = QStringLiteral("No add-ons found. Open the folder to install your first add-on.");
+            notice = addons.isEmpty() ? QStringLiteral("No add-ons found. Open the folder to install your first add-on.") :
+                QStringLiteral("No add-ons match this tool filter.");
         notice_->setText(notice);
         notice_->setVisible(!notice.isEmpty());
     }

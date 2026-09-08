@@ -5,6 +5,8 @@
 #include <map>
 #include <regex>
 #include <stdexcept>
+#include <set>
+#include <sstream>
 
 namespace fs = std::filesystem;
 namespace ha {
@@ -23,6 +25,21 @@ static std::string trim(std::string s) {
     if (begin == std::string::npos) return {};
     return s.substr(begin, s.find_last_not_of(" \t\r") - begin + 1);
 }
+static std::vector<std::string> tool_tags(const std::string& value) {
+    static const std::set<std::string> allowed{"all", "asset_browser", "hammer", "modeldoc", "material_editor", "particle_editor"};
+    std::vector<std::string> tags;
+    std::istringstream input(value);
+    for (std::string tag; std::getline(input, tag, ',');) {
+        tag = trim(tag);
+        if (!allowed.contains(tag) || std::find(tags.begin(), tags.end(), tag) != tags.end())
+            throw std::runtime_error("invalid or duplicate tools tag");
+        tags.push_back(tag);
+    }
+    if (tags.empty() || value.back() == ',' ||
+        (tags.size() > 1 && std::find(tags.begin(), tags.end(), "all") != tags.end()))
+        throw std::runtime_error("tools must list supported tool IDs, or all alone");
+    return tags;
+}
 static std::map<std::string, std::string> manifest(const fs::path& file) {
     if (!plain_path(file) || fs::file_size(file) > 16384) throw std::runtime_error("invalid manifest path or size");
     std::ifstream in(file);
@@ -38,12 +55,18 @@ static std::map<std::string, std::string> manifest(const fs::path& file) {
         auto key = trim(line.substr(0, pos));
         if (!values.emplace(key, trim(line.substr(pos + 1))).second) throw std::runtime_error("duplicate manifest key");
     }
-    if (values.size() != 6 || values["format"] != "1" || values["abi"] != "1" ||
+    for (const auto& [key, value] : values) {
+        if (key != "format" && key != "abi" && key != "id" && key != "version" &&
+            key != "enabled" && key != "entry" && key != "tools")
+            throw std::runtime_error("unknown manifest key");
+    }
+    if ((values.size() != 6 && values.size() != 7) || values["format"] != "1" || values["abi"] != "1" ||
         !std::regex_match(values["id"], std::regex("[a-z][a-z0-9_]{0,63}")) ||
         !std::regex_match(values["version"], std::regex("[0-9]+\\.[0-9]+\\.[0-9]+")) ||
         (values["enabled"] != "true" && values["enabled"] != "false") ||
         !std::regex_match(values["entry"], std::regex("[a-zA-Z0-9_-]+\\.dll")))
         throw std::runtime_error("unsupported or incomplete addon.ini");
+    if (values.contains("tools")) tool_tags(values.at("tools"));
     return values;
 }
 Runtime::Runtime(fs::path root) : root_(std::move(root)) {}
@@ -76,11 +99,12 @@ Summary Runtime::start() {
     for (const auto& item : fs::directory_iterator(directory)) if (item.is_directory()) paths.push_back(item.path());
     std::sort(paths.begin(), paths.end());
     for (const auto& path : paths) {
-        statuses_.push_back({path.filename().string(), "", "Failed", ""});
+        statuses_.push_back({path.filename().string(), "", "Failed", "", {}});
         auto& status = statuses_.back();
         try {
             const auto data = manifest(path / "addon.ini");
             status.version = data.at("version");
+            if (data.contains("tools")) status.tools = tool_tags(data.at("tools"));
             if (data.at("id") != path.filename().string()) throw std::runtime_error("id must equal folder name");
             if (data.at("enabled") == "false") { status.state = "Disabled"; status.detail = "Disabled in addon.ini"; ++result.disabled; continue; }
             const auto entry = fs::absolute(path / data.at("entry"));
@@ -172,7 +196,12 @@ std::string Runtime::status_json() {
         if (!first) out += ',';
         first = false;
         out += "{\"id\":" + quote(status.id) + ",\"version\":" + quote(status.version) +
-            ",\"state\":" + quote(status.state) + ",\"detail\":" + quote(status.detail) + "}";
+            ",\"state\":" + quote(status.state) + ",\"detail\":" + quote(status.detail) + ",\"tools\":[";
+        for (size_t i = 0; i < status.tools.size(); ++i) {
+            if (i) out += ',';
+            out += quote(status.tools[i]);
+        }
+        out += "]}";
     }
     return out + "]}";
 }

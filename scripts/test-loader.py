@@ -42,8 +42,19 @@ def main():
                 assert states.count('Failed') == int(re.search(r'rejected=(\d+)', result.stdout)[1]), snapshot
                 assert states.count('Disabled') == int(re.search(r'disabled=(\d+)', result.stdout)[1]), snapshot
             count += 1
+            return snapshot
 
         run(0, 'loaded=1 rejected=0', 'host.test: standalone', 'hello: shutdown')
+        assert run(0)['addons'][0]['tools'] == ['all']
+        (hello / 'addon.ini').write_text(original.replace('tools=all\n', ''))
+        assert run(0)['addons'][0]['tools'] == []
+        for tags, expected in [('asset_browser,hammer', ['asset_browser','hammer']),
+                               ('modeldoc', ['modeldoc']), ('hammer, modeldoc', ['hammer','modeldoc'])]:
+            (hello / 'addon.ini').write_text(original.replace('tools=all', 'tools=' + tags))
+            assert run(0)['addons'][0]['tools'] == expected
+        for tags in ['', 'unknown', 'hammer,hammer', 'all,hammer', 'hammer,', ',hammer']:
+            (hello / 'addon.ini').write_text(original.replace('tools=all', 'tools=' + tags))
+            run(1, 'rejected=1')
         (hello / 'addon.ini').write_text(original.replace('enabled=true', 'enabled=false'))
         run(0, 'loaded=0 rejected=0 disabled=1')
         for replacement in ['../hello.dll', 'C:/hello.dll', 'hello.dll:stream', 'folder/hello.dll']:
@@ -172,7 +183,8 @@ def main():
         count += 1
         # Compile and load a generated third-party add-on against only the public SDK.
         generated = directory / 'generated'
-        subprocess.run(['python', str(root / 'dist/scripts/new-addon.py'), 'generated', '--output', str(generated)], check=True, capture_output=True, timeout=15)
+        subprocess.run(['python', str(root / 'dist/scripts/new-addon.py'), 'generated', '--output', str(generated), '--tools', 'hammer,modeldoc'], check=True, capture_output=True, timeout=15)
+        assert 'tools=hammer,modeldoc' in (generated / 'addon.ini').read_text()
         cache = (binaries.parent / 'CMakeCache.txt').read_text()
         cmake = re.search(r'^CMAKE_COMMAND:INTERNAL=(.+)$', cache, re.M)[1]
         generator = re.search(r'^CMAKE_GENERATOR:INTERNAL=(.+)$', cache, re.M)[1]

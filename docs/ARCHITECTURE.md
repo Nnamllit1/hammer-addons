@@ -51,9 +51,13 @@ A worker retries UI startup for up to 60 seconds if Qt or QApplication is not
 ready yet. Widget creation is queued onto the Qt application thread.
 
 The controller discovers visible Asset Browser, Hammer and Source 2 Tools
-QMainWindows. Each supported window owns one dock and menu. Panels close and
+QMainWindows. Each supported window owns one dock. Asset Browser displays it at startup with
+a top-level manager menu. Hammer starts with the dock hidden and places its
+manager submenu under Help. Both offer Add-ons and About tabs. Panels close and
 reopen independently, refresh from the same runtime, and are recreated with
-their parent editor. Unrelated windows and dialogs are left alone. At present,
+their parent editor. Manifest tool tags are discovery metadata used by each
+panel's independent filter; they do not change shared startup or callback
+dispatch. Hammer defaults to its own tag filter. Unrelated windows and dialogs are left alone. At present,
 live verification covers Asset Browser and Hammer.
 
 A private C bridge copies JSON status snapshots; no Qt or STL ownership crosses

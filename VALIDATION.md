@@ -75,3 +75,15 @@ This supersedes the earlier Hammer-only installation described above.
 - Installed UI SHA256: `a05ea63a23e32064edc1020da0f3fcaac8f11619a2f9622fa02694a0f7a04829`.
 - Local screenshots: `build/evidence/workshop-addons-asset-browser.png` and `build/evidence/workshop-addons-hammer.png`. These are ignored build artifacts.
 - Framework scope and contributor guidance now separate general add-on infrastructure from a future, independent Hammer multiplayer project. No multiplayer implementation is claimed.
+
+## Hammer Help/About and tool tags, 2026-09-08
+
+- Windows Release build, **34 native integration scenarios**, and the Qt UI test passed.
+- Manifests accept optional tool tags while preserving format/ABI 1 and untagged manifests. Tests cover single/multiple tags, whitespace, all, missing tags, unknown/duplicate/empty IDs and invalid all combinations.
+- The generator accepts --tools and its generated tagged add-on compiles and loads against the packaged SDK.
+- UI checks cover reusing Hammer's existing Help menu, hidden startup, About/Show tab navigation, matching multiple tags, all-tools inclusion, unspecified tags, no-match messages, independent filters and unchanged filters across refresh.
+- Installed in Workshop Tools process 26660, preserving the existing untagged hello sample and its DLL.
+- Visually verified Asset Browser's Add-ons/About tabs, Tool filter and Tools column; the existing sample appears as Unspecified.
+- Opened Hammer and visually verified no additional top-level menu and no visible manager dock at startup. Invoked Help > Workshop Add-ons > About Hammer Addons; verified the About tab, version 0.1.0 and project link.
+- Tool tags are author-declared discovery metadata, not deferred activation or dependency enforcement. No ModelDoc editor API implementation is implied by its filter category.
+- Local evidence: build/evidence/tool-filter.png, build/evidence/hammer-hidden-manager.png, build/evidence/hammer-help-about.png.

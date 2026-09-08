@@ -17,14 +17,43 @@ version=0.1.0
 abi=1
 entry=hello.dll
 enabled=true
+tools=asset_browser,hammer
 ```
 
-The manifest is ASCII, at most 16 KiB, with exactly these six keys. Blank lines
+The manifest is ASCII, at most 16 KiB, with six required keys and the optional `tools` key. Blank lines
 and full-line `#` comments are allowed. Duplicate keys, unknown keys and sections
 are rejected. IDs use `[a-z][a-z0-9_]{0,63}`, versions use three numeric components,
 and `entry` is a simple DLL filename with letters, digits, underscores or hyphens.
 No subdirectories, absolute paths or junctions/symlinks are accepted. This is a
 folder format, not a ZIP installer. Add-ons are discovered in sorted folder order.
+
+## Tool tags
+
+The optional `tools` field is a comma-separated list of intended tools:
+
+| ID | Manager label |
+| --- | --- |
+| `asset_browser` | Asset Browser |
+| `hammer` | Hammer |
+| `modeldoc` | ModelDoc / Model Viewer |
+| `material_editor` | Material Editor |
+| `particle_editor` | Particle Editor |
+| `all` | All tools (must be used alone) |
+
+Whitespace around IDs is ignored. Empty, duplicate and unknown tags are rejected.
+Old format-1 manifests without this field remain valid and display as Unspecified.
+The native ABI stays at version 1. Older loader builds that only accept six keys
+must be upgraded before installing a tagged manifest.
+
+Tags are author-declared metadata for display/filtering, not runtime requirements
+or capability checks. DLLs still initialize once when the shared runtime starts;
+these tags do not postpone on_load until a named editor opens, gate callbacks,
+or guarantee an editor API exists. Add-ons must use verified interfaces and
+handle editor readiness themselves. Tool-specific activation requires a future
+lifecycle API.
+
+All tools add-ons appear under each specific tool filter. Untagged add-ons are
+shown under All add-ons and Unspecified. Counts follow the current filter.
 
 Build an x64 DLL exporting `HA_Query(uint32_t)` using `sdk/include/hammer_addons.h`.
 Return a static `HA_AddonV1` for ABI 1 and null for unsupported ABIs. The loader
