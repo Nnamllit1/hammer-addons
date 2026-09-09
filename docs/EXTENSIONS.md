@@ -14,6 +14,7 @@ Every public SDK feature has an example:
 | --- | --- |
 | [hello](../addons/hello/hello.cpp) | Loading, logging, shutdown; factory observations on the legacy proxy |
 | [commands](../addons/commands/commands.cpp) | Menu command, shortcut, tool scope, callback feedback |
+| [picker_notes](../addons/picker_notes/picker_notes.cpp) | Project-picker opt-in, panel and persistent reminder |
 | [panel_settings](../addons/panel_settings/panel_settings.cpp) | Dock panel, label, button, text field, checkbox, choice, persistent settings |
 | [menu_hooks](../addons/menu_hooks/menu_hooks.cpp) | Before/after callbacks and suppressing an existing menu action |
 | [note_import](../addons/note_import/note_import.cpp) | File extension filters, file callback, extending an import action with a handler chooser |
@@ -32,7 +33,7 @@ cmake --install ../my_panel/build --config Release --prefix ../my_panel/package
 ```
 
 Templates are `hello`, `commands`, `panel_settings`, `menu_hooks` and
-`note_import`. `--tools` changes manifest discovery tags. Change each
+`note_import` and `picker_notes`. `--tools` changes manifest tool tags. Change each
 contribution's `tool` and `target` in source to change its UI placement.
 
 ## Registration and ownership
@@ -145,3 +146,23 @@ string, or 0 on error. Undersized buffers are untouched. `set_setting` returns
 replacement. Concurrent sessions can reject a competing write; check the result.
 Persist during normal execution because editor exit does not guarantee shutdown
 callbacks.
+
+## Project-picker add-ons
+
+Use `tools=project_picker` in the manifest and `project_picker` as the contribution
+scope. The picker gains a **Workshop Add-ons** button which opens
+an owned add-ons window. Panels, commands and settings use the same SDK there.
+Targets refer to this add-ons window's menus; Valve's project-list widgets and
+Launch Tools button are not currently exposed as SDK hooks. Project creation,
+selection and launch remain Valve's own UI.
+
+`picker_notes` demonstrates a reminder saved between launches. In the picker,
+click **Workshop Add-ons**, then choose
+**Workshop Add-ons > Project picker notes** to open the example panel. Generate a project:
+
+```powershell
+python scripts/new-addon.py my_picker --template picker_notes --output ../my_picker
+```
+
+Build it using the CMake steps above, then copy its package into `addons/` and
+restart the launcher. The picker runtime needs no additional DLL in the package.

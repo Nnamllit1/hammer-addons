@@ -31,7 +31,7 @@ Contribution copy_contribution(const std::string& owner, uint64_t handle, const 
         throw std::runtime_error("invalid extension descriptor");
     Contribution c{handle, in.kind, owner, string(in.id, 64), string(in.tool, 32),
         string(in.label, 128), string(in.target, 512), string(in.options), {}, in.callback, in.user};
-    static const std::set<std::string> tools{"all","asset_browser","hammer","modeldoc","material_editor","particle_editor"};
+    static const std::set<std::string> tools{"all","project_picker","asset_browser","hammer","modeldoc","material_editor","particle_editor"};
     if (!id(c.id) || !tools.contains(c.tool) || c.label.empty() ||
         c.target.find("//") != std::string::npos || c.target.starts_with('/') || c.target.ends_with('/'))
         throw std::runtime_error("invalid extension ID, tool, label or target");

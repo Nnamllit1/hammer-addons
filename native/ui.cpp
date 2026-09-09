@@ -2,6 +2,8 @@
 #include "ui_bridge.h"
 #include "ui_extensions.h"
 #include <QApplication>
+#include <QStatusBar>
+#include <QFileInfo>
 #include <QComboBox>
 #include <QTabWidget>
 #include <QDesktopServices>
@@ -26,6 +28,7 @@
 namespace {
 std::atomic<bool> scheduled{false};
 static QString tool_label(const QString& id) {
+    if (id == "project_picker") return QStringLiteral("Workshop project picker");
     if (id == "all") return QStringLiteral("All tools");
     if (id == "asset_browser") return QStringLiteral("Asset Browser");
     if (id == "hammer") return QStringLiteral("Hammer");
@@ -39,6 +42,7 @@ static bool is_hammer(const QString& title) {
 }
 
 static QString window_tool(const QString& title) {
+    if (title == "Workshop Tools Add-ons") return QStringLiteral("project_picker");
     if (is_hammer(title)) return QStringLiteral("hammer");
     for (const auto& pair : {qMakePair(QStringLiteral("Asset Browser"),QStringLiteral("asset_browser")),
             qMakePair(QStringLiteral("Source 2 Tools"),QStringLiteral("asset_browser")),
@@ -84,7 +88,7 @@ class Panel final : public QObject {
         aboutLayout->addWidget(title);
         auto* description = new QLabel(QStringLiteral(
             "A shared add-on framework for CS2 Workshop Tools.\n\n"
-            "One loader serves Asset Browser and the editors in this tools session.\n\n"
+            "Add-ons for the Workshop project picker, Asset Browser and editors.\n\n"
             "This is an unofficial project, independent of Valve."), about);
         description->setWordWrap(true);
         aboutLayout->addWidget(description);
@@ -118,7 +122,7 @@ class Panel final : public QObject {
         filter_ = new QComboBox(panel);
         filter_->setObjectName(QStringLiteral("HammerAddonsFilter"));
         filter_->addItem(QStringLiteral("All add-ons"), QString());
-        for (const auto& id : {"asset_browser", "hammer", "modeldoc", "material_editor", "particle_editor", "unspecified"})
+        for (const auto& id : {"project_picker", "asset_browser", "hammer", "modeldoc", "material_editor", "particle_editor", "unspecified"})
             filter_->addItem(tool_label(QString::fromLatin1(id)), QString::fromLatin1(id));
         filtering->addWidget(filter_);
         filtering->addStretch();
@@ -174,7 +178,11 @@ class Panel final : public QObject {
         if (hammer) {
             filter_->setCurrentIndex(filter_->findData(QStringLiteral("hammer")));
             dock->hide();
-        } else dock->show();
+        } else {
+            if(window_tool(window->windowTitle())=="project_picker")
+                filter_->setCurrentIndex(filter_->findData(QStringLiteral("project_picker")));
+            dock->show();
+        }
     }
     void tick() {
         if (!dock_) return;
@@ -220,7 +228,7 @@ class Panel final : public QObject {
             const auto tools = addon.value(QStringLiteral("tools")).toArray();
             const bool unspecified = tools.isEmpty();
             if (!selected.isEmpty() && !(selected == "unspecified" ? unspecified :
-                tools.contains(selected) || tools.contains(QStringLiteral("all")))) continue;
+                tools.contains(selected) || (selected != "project_picker" && tools.contains(QStringLiteral("all"))))) continue;
             QStringList labels;
             for (const auto& tool : tools) labels.append(tool_label(tool.toString()));
             if (labels.isEmpty()) labels.append(tool_label(QString()));
@@ -254,6 +262,29 @@ class Controller final : public QObject {
     HA_UiHost host_;
     void discover() {
         for (auto* widget : QApplication::topLevelWidgets()) {
+            // QMainWindow's internal layout cannot accept arbitrary widgets.
+            // Use its status bar, preserving Valve's central project-selection UI.
+            if(QFileInfo(QCoreApplication::applicationFilePath()).fileName().compare("csgocfg.exe",Qt::CaseInsensitive)==0 &&
+               widget->isVisible() && widget->windowTitle().trimmed()=="Workshop Tools" && widget->layout() &&
+               !widget->property("ha_picker_attached").toBool()) {
+                widget->setProperty("ha_picker_attached",true);
+                auto* manager=new QMainWindow(widget,Qt::Tool);
+                manager->setWindowTitle("Workshop Tools Add-ons");
+                manager->resize(700,500);
+                new Panel(host_,manager);
+                auto* button=new QPushButton("Workshop Add-ons",widget);
+                button->setToolTip("Add-on loader active. Open the add-on manager.");
+                button->setMinimumSize(button->sizeHint());
+                button->setObjectName("HammerAddonsPickerButton");
+                if(auto* picker=qobject_cast<QMainWindow*>(widget)) {
+                    picker->statusBar()->setSizeGripEnabled(false);
+                    picker->statusBar()->showMessage("Add-on loader active");
+                    picker->statusBar()->addPermanentWidget(button);
+                } else if(auto* box=qobject_cast<QBoxLayout*>(widget->layout())) {
+                    box->addWidget(button,0,Qt::AlignRight);
+                }
+                connect(button,&QPushButton::clicked,manager,[manager]{manager->show();manager->raise();});
+            }
             auto* window = qobject_cast<QMainWindow*>(widget);
             if (!window || !window->isVisible() || window->findChild<QDockWidget*>("HammerAddonsDock"))
                 continue;

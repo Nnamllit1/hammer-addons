@@ -7,11 +7,19 @@ Tools. A single runtime serves editors in the same tools process.
 
 The default user entry point is `Launch Workshop Tools.cmd`, which runs the
 bundled tools_launcher.exe. The launcher discovers CS2, checks the original Asset
-Browser hash and creates its own tools/insecure process. Its temporary Windows job
+Browser hash and starts Valve's project picker. Windows debug creation events
+identify the CS2 child selected in that picker; only that owned child receives
+the editor runtime. The helper normalizes executable paths and verifies job
+membership before handoff. It stops debug tracking before editor initialization. Its temporary Windows job
 owns startup failure cleanup. Windows loads hammer_addons_runtime.dll from the
 portable package; an explicit export starts add-ons outside DllMain once the tools
 application becomes ready. Both the launcher and runtime constrain this path to
-an insecure tools session. No existing game process is attached to.
+an insecure tools session or its insecure project-picker parent. No existing game process is attached to.
+
+Picker add-ons explicitly declare `project_picker`; existing editor add-ons do
+not load in that separate process. The picker uses the same runtime/UI DLLs and
+gets a Qt button opening its owned add-ons window. No Valve project widgets
+are replaced, and there is no SDK hook for project selection yet.
 
 The runtime/UI DLLs and addons folder stay outside the game installation. All
 editor APIs except legacy factory observations use the existing runtime. The

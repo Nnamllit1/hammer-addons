@@ -155,3 +155,39 @@ This supersedes the earlier Hammer-only installation described above.
   HA_CAP_FACTORY_EVENTS is not advertised. Existing UI and settings APIs remain.
 - build.bat creates dist/hammer-addons-portable.zip with a fixed release file list,
   excluding local logs, project preferences and additional installed add-ons.
+
+
+## Native project picker and picker add-ons (2026-09-09)
+
+- Verified local Steam launch metadata selects `game/bin/win64/csgocfg.exe`
+  with `-steam -retail -gpuraytracing -vulkan`. The portable launcher now opens
+  that picker on every launch and adds `-insecure -nop4`; no project is chosen
+  or remembered by the framework, and old project CLI flags are removed.
+- Release build passed. All 35 native loader scenarios, offscreen UI tests and
+  extension SDK tests passed. Launcher tests cover cancellation, owned-child
+  handoff, rejecting insecure-flag omissions, normalized paths, picker scope,
+  real Qt panel/settings callbacks and cancellation after picker initialization.
+- Live Valve picker PID 20128 showed the loader button and loaded `picker_notes`;
+  `UI binding 1 [project_picker]: Attached` was logged. Its selected CS2 child
+  PID 17672 loaded `hello` from the portable runtime. Logs are local under
+  `build/picker-addons.*.log` and `build/picker-package/portable/loader.log`.
+- The picker runtime requires explicit `project_picker` opt-in. Existing editor
+  add-ons do not execute there. The owned add-ons window supports the existing
+  panel/command/settings SDK; Valve project-list and launch-button hooks are
+  not implemented. No normal gameplay or VAC admission claim is made.
+
+
+## Picker footer layout correction (2026-09-09)
+
+The first picker integration passed button-discovery checks but inserted its
+button into QMainWindow's internal layout. Live diagnostics showed
+`QMainWindowLayout`, index -1, and an unmanaged 100x30 button at the top-left.
+The button now uses QStatusBar.addPermanentWidget, with a minimum sizeHint and
+separate loader-active status text. A real-window screenshot confirmed the full
+button in the bottom footer with unobstructed project controls.
+
+The picker fixture now uses QMainWindow with central content and checks button
+visibility, minimum size, status-bar ancestry and placement below that content,
+as well as opening the manager and interacting with the example. Launcher
+integration tests passed after the correction. Temporary diagnostic logging was
+removed from the shipping UI.

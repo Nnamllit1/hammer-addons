@@ -1,7 +1,7 @@
 # Hammer Addons
 
 A native **add-on framework for CS2 Workshop Tools**, with a versioned C SDK
-and a shared add-on manager. A portable launcher loads it into a dedicated Workshop Tools session.
+and a shared add-on manager for the Workshop project picker and editors. A portable launcher loads it into a dedicated Workshop Tools session.
 
 The framework provides native DLL loading, lifecycle callbacks, logging,
 add-on panels and commands, persistent settings,
@@ -10,25 +10,17 @@ own against the included SDK.
 
 This is an unofficial project, independent of Valve.
 
-## Build
+## Install and start
 
-Requires Windows x64, Python 3.11+ and Visual Studio 2022 or 2026 with Desktop
-development with C++ and CMake tools.
+**Start here: [step-by-step installation guide](docs/INSTALLATION.md).**
+It covers extracting the portable ZIP, your first launch, installing add-ons,
+troubleshooting, and optional desktop and Steam shortcuts.
+For command-line options and migration, use the [advanced launcher guide](docs/LAUNCHER.md).
 
-```powershell
-.\build.bat -Test
-```
-
-The first build downloads the matching Qt 5.15.2 development package (33 MiB)
-from Qt's official archive, verifies its pinned SHA256, and caches it under
-`build/deps`. Later builds use the cache. The distribution contains our
-portable CMD launcher, native helper, runtime/UI DLLs, SDK and `hello` sample.
-Legacy proxies and a standalone host remain available for regression testing.
-Optional feature examples are built into `dist/examples/addons/`.
-It uses Workshop Tools' existing Qt runtime; no Qt DLLs are installed.
-Tests use fixture DLLs and temporary folders, so CS2 is not required.
-
-## Launch Workshop Tools with add-ons
+> **Add-ons can contain malware.** Native add-on DLLs run code with your Windows
+> account's permissions, much like an EXE. Only install add-ons from sources and
+> publishers you trust; a file sent by someone is not automatically safe.
+> Add-ons are not sandboxed, and `-insecure` does not protect your computer.
 
 Extract **dist/hammer-addons-portable.zip** (or use **dist/portable/**) outside your CS2 installation and double-click
 **Launch Workshop Tools.cmd**. The complete folder is required: the CMD script,
@@ -36,9 +28,9 @@ launcher EXE, runtime/UI DLLs and addons folder. End users do not need Python or
 PowerShell. The launcher detects Steam libraries; alternatively, drag the CS2
 folder or cs2.exe onto the CMD file.
 
-Choose a Workshop project if prompted. The launcher remembers successful choices;
-use `--choose-project` to change projects. Create a desktop shortcut to the CMD
-file, or add **tools_launcher.exe** as a non-Steam game for one-click launching
+Each launch opens Valve's normal Workshop Tools project picker, just like Steam.
+Choose or create a project there, then launch tools. The framework does not select
+or remember a project for you. Create a desktop shortcut to the CMD file, or add **tools_launcher.exe** as a non-Steam game for one-click launching
 from your Steam library. See the [launcher guide](docs/LAUNCHER.md).
 
 The launcher starts its own `-tools -insecure` session and loads the framework
@@ -56,12 +48,31 @@ Workshop Tools. Set `enabled=false` in an add-on manifest to disable it, or crea
 a `disabled` file beside the portable runtime to disable all add-ons. Native
 add-ons execute with the editor's permissions and are not sandboxed.
 
-The **Workshop Add-ons** manager appears in Asset Browser. Hammer keeps it under
+The project picker has a **Workshop Add-ons** button in its status bar for its
+add-ons window. The **Workshop Add-ons** manager appears in Asset Browser. Hammer keeps it under
 **Help > Workshop Add-ons**, hidden until opened. Its Add-ons tab shows loaded,
 disabled and failed packages and supports tool filters. The Extensions tab shows
 bindings for the current editor, and About links to the project documentation.
 Dock, float or close each panel independently. **Open add-ons folder** opens the
 portable package's add-ons directory.
+
+## Build from source
+
+Requires Windows x64, Python 3.11+ and Visual Studio 2022 or 2026 with Desktop
+development with C++ and CMake tools.
+
+```powershell
+.\build.bat -Test
+```
+
+The first build downloads the matching Qt 5.15.2 development package (33 MiB)
+from Qt's official archive, verifies its pinned SHA256, and caches it under
+`build/deps`. Later builds use the cache. The distribution contains our
+portable CMD launcher, native helper, runtime/UI DLLs, SDK and `hello` sample.
+Legacy proxies and a standalone host remain available for regression testing.
+Optional feature examples are built into `dist/examples/addons/`.
+It uses Workshop Tools' existing Qt runtime; no Qt DLLs are installed.
+Tests use fixture DLLs and temporary folders, so CS2 is not required.
 
 ## Write an add-on
 
@@ -77,14 +88,16 @@ Copy `package/my_addon/` into the loader's `addons/` directory. See the
 and [C header](sdk/include/hammer_addons.h). ABI 1 add-ons remain compatible;
 add an optional `tools=asset_browser,hammer` manifest field to declare
 supported tools, or `tools=all` for a general add-on. Untagged older add-ons
-appear as **Unspecified**. These tags describe intended tools for discovery;
-they do not assert that an editor is open or delay DLL startup.
+appear as **Unspecified**. Editor tags describe intended tools for discovery; they do not assert that an
+editor is open or delay DLL startup. Use `project_picker` to explicitly enable
+an add-on in the separate project-picker application; existing `all` add-ons
+continue to load only in the editor process.
 Factory-request observations belong to the legacy proxy entry point. The portable
 launcher does not advertise `HA_CAP_FACTORY_EVENTS`; add-ons requiring that
 capability need to be adapted.
 
-Use `--template commands`, `--template panel_settings`, `--template menu_hooks`
-or `--template note_import` to start from a feature example. Each SDK feature has
+Use `--template commands`, `--template panel_settings`, `--template menu_hooks`,
+`--template note_import` or `--template picker_notes` to start from a feature example. Each SDK feature has
 [a corresponding example add-on](docs/EXTENSIONS.md#examples).
 
 ## Current capabilities and limitations

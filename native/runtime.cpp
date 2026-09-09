@@ -26,7 +26,7 @@ static std::string trim(std::string s) {
     return s.substr(begin, s.find_last_not_of(" \t\r") - begin + 1);
 }
 static std::vector<std::string> tool_tags(const std::string& value) {
-    static const std::set<std::string> allowed{"all", "asset_browser", "hammer", "modeldoc", "material_editor", "particle_editor"};
+    static const std::set<std::string> allowed{"all", "project_picker", "asset_browser", "hammer", "modeldoc", "material_editor", "particle_editor"};
     std::vector<std::string> tags;
     std::istringstream input(value);
     for (std::string tag; std::getline(input, tag, ',');) {
@@ -69,7 +69,7 @@ static std::map<std::string, std::string> manifest(const fs::path& file) {
     if (values.contains("tools")) tool_tags(values.at("tools"));
     return values;
 }
-Runtime::Runtime(fs::path root, fs::path settings_root, bool factory_events) : settings_(std::move(settings_root)), root_(std::move(root)), factory_events_(factory_events) {}
+Runtime::Runtime(fs::path root, fs::path settings_root, bool factory_events, std::string process_scope) : settings_(std::move(settings_root)), root_(std::move(root)), factory_events_(factory_events), process_scope_(std::move(process_scope)) {}
 void Runtime::log(const std::string& message) {
     std::lock_guard guard(log_mutex_);
     // Logs are best effort: a read-only installation must not break Hammer.
@@ -107,6 +107,13 @@ Summary Runtime::start() {
             if (data.contains("tools")) status.tools = tool_tags(data.at("tools"));
             if (data.at("id") != path.filename().string()) throw std::runtime_error("id must equal folder name");
             if (data.at("enabled") == "false") { status.state = "Disabled"; status.detail = "Disabled in addon.ini"; ++result.disabled; continue; }
+            // Picker opt-in is explicit: existing all/untagged editor add-ons must
+            // not suddenly execute in a different application after an update.
+            const bool picker_tag=std::find(status.tools.begin(),status.tools.end(),"project_picker")!=status.tools.end();
+            if((process_scope_=="project_picker" && !picker_tag) ||
+               (process_scope_=="tools" && picker_tag && status.tools.size()==1)) {
+                status.state="Skipped";status.detail="Not enabled for this application";continue;
+            }
             const auto entry = fs::absolute(path / data.at("entry"));
             if (!plain_path(entry)) throw std::runtime_error("DLL path contains a reparse point");
             auto addon = std::make_unique<Addon>();

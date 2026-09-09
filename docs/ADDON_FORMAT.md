@@ -34,27 +34,34 @@ The optional `tools` field is a comma-separated list of intended tools:
 
 | ID | Manager label |
 | --- | --- |
+| `project_picker` | Workshop project picker (explicit process opt-in) |
 | `asset_browser` | Asset Browser |
 | `hammer` | Hammer |
 | `modeldoc` | ModelDoc / Model Viewer |
 | `material_editor` | Material Editor |
 | `particle_editor` | Particle Editor |
-| `all` | All tools (must be used alone) |
+| `all` | All editors in the CS2 tools process (must be used alone) |
 
 Whitespace around IDs is ignored. Empty, duplicate and unknown tags are rejected.
 Old format-1 manifests without this field remain valid and display as Unspecified.
 The native ABI stays at version 1. Older loader builds that only accept six keys
 must be upgraded before installing a tagged manifest.
 
-Tags are author-declared metadata for display/filtering, not runtime requirements
-or capability checks. DLLs still initialize once when the shared runtime starts;
-these tags do not postpone on_load until a named editor opens, gate callbacks,
-or guarantee an editor API exists. Add-ons must use verified interfaces and
-handle editor readiness themselves. Tool-specific activation requires a future
-lifecycle API.
+Editor tags are author-declared metadata for display/filtering, not capability
+checks. They do not postpone on_load until a named editor opens or guarantee an
+editor API exists. Add-ons must handle editor readiness themselves.
 
-All tools add-ons appear under each specific tool filter. Untagged add-ons are
-shown under All add-ons and Unspecified. Counts follow the current filter.
+`project_picker` explicitly opts into the separate `csgocfg.exe` application.
+Picker-only add-ons are skipped in the CS2 editor process; manifests such as
+`tools=project_picker,asset_browser` enable loading in both processes. Existing
+`all` and untagged add-ons keep running only in the editor process. This exception
+prevents existing DLLs from unexpectedly starting inside the picker.
+Each process has its own add-on instances; settings use the same per-user store.
+The C ABI remains version 1. This is activation routing, not a security sandbox.
+Legacy proxy/standalone hosts do not provide this portable process routing.
+
+All-editor add-ons appear under each editor filter, but not the picker filter.
+Untagged add-ons appear under All add-ons and Unspecified. Counts follow the filter.
 
 Build an x64 DLL exporting `HA_Query(uint32_t)` using `sdk/include/hammer_addons.h`.
 Return a static `HA_AddonV1` for ABI 1 and null for unsupported ABIs. The loader

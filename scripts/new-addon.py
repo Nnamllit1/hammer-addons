@@ -7,8 +7,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('id')
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--template', choices=['hello', 'commands', 'panel_settings', 'menu_hooks', 'note_import'], default='hello')
-    parser.add_argument('--tools', default=None, help='Comma-separated discovery tags (default: selected template)' )
+    parser.add_argument('--template', choices=['hello', 'commands', 'panel_settings', 'menu_hooks', 'note_import', 'picker_notes'], default='hello')
+    parser.add_argument('--tools', default=None, help='Comma-separated tool tags (default: selected template)' )
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     source = root / 'addons' / args.template
@@ -19,7 +19,7 @@ def main():
     declared = re.search(r'^tools=(.+)$', manifest, re.M)
     tags = [tag.strip() for tag in (args.tools if args.tools is not None else (declared[1] if declared else 'all')).split(',')]
     if (not tags or len(set(tags)) != len(tags) or
-            any(tag not in {'all', 'asset_browser', 'hammer', 'modeldoc', 'material_editor', 'particle_editor'} for tag in tags) or
+            any(tag not in {'all', 'project_picker', 'asset_browser', 'hammer', 'modeldoc', 'material_editor', 'particle_editor'} for tag in tags) or
             ('all' in tags and len(tags) != 1)):
         parser.error('Use distinct supported tool IDs, or all alone.')
     if not re.fullmatch('[a-z][a-z0-9_]{0,63}', args.id) or args.id in {'con', 'prn', 'aux', 'nul', *(f'com{i}' for i in range(1, 10)), *(f'lpt{i}' for i in range(1, 10))}:
@@ -46,7 +46,7 @@ target_include_directories(ADDON_NAME PRIVATE "${HAMMER_ADDONS_SDK}/include")
 install(TARGETS ADDON_NAME RUNTIME DESTINATION ADDON_NAME)
 install(FILES addon.ini DESTINATION ADDON_NAME)
 '''.replace('ADDON_NAME', args.id))
-    print(f'Created {args.output}. Build with CMake and -DHAMMER_ADDONS_SDK=<checkout>/sdk. Tool tags are metadata; edit contribution.tool/target in the source to change UI placement.')
+    print(f'Created {args.output}. Build with CMake and -DHAMMER_ADDONS_SDK=<checkout>/sdk. Use project_picker to opt into the picker process; edit contribution.tool/target in source for UI placement.')
 
 if __name__ == '__main__':
     main()

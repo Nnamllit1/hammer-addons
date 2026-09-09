@@ -12,7 +12,7 @@ namespace ha {
 struct Summary { unsigned loaded = 0, rejected = 0, disabled = 0; };
 class Runtime {
 public:
-    explicit Runtime(std::filesystem::path root, std::filesystem::path settings_root = {}, bool factory_events = true);
+    explicit Runtime(std::filesystem::path root, std::filesystem::path settings_root = {}, bool factory_events = true, std::string process_scope = {});
     Summary start();
     void event(const char* name, const char* value);
     void shutdown();
@@ -50,6 +50,7 @@ private:
     std::recursive_mutex callbacks_;
     bool started_ = false;
     bool factory_events_;
+    std::string process_scope_;
 };
 bool plain_path(const std::filesystem::path& path);
 }

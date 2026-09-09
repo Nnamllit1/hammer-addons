@@ -5,7 +5,7 @@ import zipfile
 
 FILES = (
     'Launch Workshop Tools.cmd', 'tools_launcher.exe',
-    'hammer_addons_runtime.dll', 'hammer_addons_ui.dll', 'README.md',
+    'hammer_addons_runtime.dll', 'hammer_addons_ui.dll', 'README.md', 'LAUNCHER.md',
     'addons/hello/addon.ini', 'addons/hello/hello.dll',
 )
 

@@ -20,7 +20,7 @@ int main(int argc,char** argv) {
     QObject::connect(&timer,&QTimer::timeout,[&] {
         if(auto* dock=window.findChild<QDockWidget*>("HammerAddonsDock")) {
             auto* rows=dock->findChild<QTreeWidget*>("HammerAddonsList");
-            if(rows && rows->topLevelItemCount()==2 && rows->topLevelItem(0)->text(2)=="Loaded" && rows->topLevelItem(1)->text(2)=="Failed") { timer.stop(); QTimer::singleShot(1500,&app,[&app]{app.exit(0);}); }
+            if(rows && (rows->topLevelItemCount()==2 || rows->topLevelItemCount()==3) && rows->topLevelItem(0)->text(2)=="Loaded" && rows->topLevelItem(rows->topLevelItemCount()-1)->text(2)=="Failed") { timer.stop(); QTimer::singleShot(1500,&app,[&app]{app.exit(0);}); }
         }
         if(++attempts>120) app.exit(10);
     });

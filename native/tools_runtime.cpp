@@ -21,9 +21,13 @@ static int __cdecl invoke(void*,uint64_t handle,const char* tool,const char* pha
 static void __cdecl report(void*,uint64_t handle,const char* tool,const char* message) {
     try{runtime->report_binding(handle,tool,message);}catch(...){}
 }
+static bool picker_session=false;
 static bool tools_session() {
     wchar_t executable[32768]{};
-    if(!GetModuleFileNameW(nullptr,executable,32768) || _wcsicmp(fs::path(executable).filename().c_str(),L"cs2.exe")) return false;
+    if(!GetModuleFileNameW(nullptr,executable,32768)) return false;
+    const auto name=fs::path(executable).filename();
+    picker_session=_wcsicmp(name.c_str(),L"csgocfg.exe")==0;
+    if(!picker_session && _wcsicmp(name.c_str(),L"cs2.exe")) return false;
     int count=0;auto** args=CommandLineToArgvW(GetCommandLineW(),&count);
     if(!args) return false;
     bool tools=false,insecure=false;
@@ -32,7 +36,7 @@ static bool tools_session() {
         insecure|=wcscmp(args[i],L"-insecure")==0;
     }
     LocalFree(args);
-    return tools && insecure;
+    return insecure && (tools || picker_session);
 }
 // Explicit initialization after LoadLibrary returns; DllMain performs no startup work.
 extern "C" __declspec(dllexport) DWORD WINAPI HA_StartTools(void*) noexcept {
@@ -44,10 +48,10 @@ extern "C" __declspec(dllexport) DWORD WINAPI HA_StartTools(void*) noexcept {
         const auto root=fs::path(path).parent_path();
         if(!ha::plain_path(root)) return 4;
         // This entry point does not intercept Valve's factory, so do not advertise observations.
-        runtime=new ha::Runtime(root,{},false);
-        runtime->log("Starting launcher-owned insecure Workshop Tools session");
+        runtime=new ha::Runtime(root,{},false,picker_session ? "project_picker" : "tools");
+        runtime->log(picker_session ? "Starting launcher-owned Workshop project picker" : "Starting launcher-owned insecure Workshop Tools session");
         for(unsigned attempt=0;attempt<120;++attempt) {
-            if(GetModuleHandleW(L"assetbrowser.dll") && GetModuleHandleW(L"Qt5Widgets.dll")) {
+            if((picker_session || GetModuleHandleW(L"assetbrowser.dll")) && GetModuleHandleW(L"Qt5Widgets.dll")) {
                 const auto ui=root/L"hammer_addons_ui.dll";
                 if(!ha::plain_path(ui)) return 5;
                 auto module=LoadLibraryExW(ui.c_str(),nullptr,LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR|LOAD_LIBRARY_SEARCH_APPLICATION_DIR|LOAD_LIBRARY_SEARCH_SYSTEM32);
