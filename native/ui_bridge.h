@@ -8,5 +8,7 @@ struct HA_UiHost {
     void* context;
     // Returns required bytes including NUL; writes only if capacity is sufficient.
     size_t (__cdecl *read_status)(void* context, char* destination, size_t capacity);
+    int (__cdecl *invoke)(void*, uint64_t, const char*, const char*, const char*, const char*, char*, size_t);
+    void (__cdecl *report_binding)(void*, uint64_t, const char*, const char*);
 };
 typedef int (__cdecl *HA_UiStart)(const HA_UiHost* host);

@@ -1,5 +1,6 @@
 #include "qt_compat.h"
 #include "ui_bridge.h"
+#include "ui_extensions.h"
 #include <QApplication>
 #include <QComboBox>
 #include <QTabWidget>
@@ -37,6 +38,19 @@ static bool is_hammer(const QString& title) {
     return title == "Hammer" || title.startsWith("Hammer -") || title.endsWith(" - Hammer");
 }
 
+static QString window_tool(const QString& title) {
+    if (is_hammer(title)) return QStringLiteral("hammer");
+    for (const auto& pair : {qMakePair(QStringLiteral("Asset Browser"),QStringLiteral("asset_browser")),
+            qMakePair(QStringLiteral("Source 2 Tools"),QStringLiteral("asset_browser")),
+            qMakePair(QStringLiteral("ModelDoc"),QStringLiteral("modeldoc")),
+            qMakePair(QStringLiteral("ModelDoc Editor"),QStringLiteral("modeldoc")),
+            qMakePair(QStringLiteral("Material Editor"),QStringLiteral("material_editor")),
+            qMakePair(QStringLiteral("Particle Editor"),QStringLiteral("particle_editor"))})
+        if (title == pair.first || (title.startsWith(pair.first+" -") || title.startsWith(pair.first+" ::")) || title.endsWith(" - "+pair.first))
+            return pair.second;
+    return {};
+}
+
 class Panel final : public QObject {
     HA_UiHost host_;
     QByteArray previous_;
@@ -48,6 +62,9 @@ class Panel final : public QObject {
     QComboBox* filter_ = nullptr;
     QTabWidget* tabs_ = nullptr;
     QJsonObject snapshot_;
+    QObject* extensions_ = nullptr;
+    QTreeWidget* extensionRows_ = nullptr;
+    QJsonArray previousBindings_;
 
     void open_folder() {
         if (!directory_.isEmpty()) QDesktopServices::openUrl(QUrl::fromLocalFile(directory_));
@@ -67,8 +84,7 @@ class Panel final : public QObject {
         aboutLayout->addWidget(title);
         auto* description = new QLabel(QStringLiteral(
             "A shared add-on framework for CS2 Workshop Tools.\n\n"
-            "One loader serves Asset Browser and the editors in this tools session. "
-            "Hammer is the first editor focus.\n\n"
+            "One loader serves Asset Browser and the editors in this tools session.\n\n"
             "This is an unofficial project, independent of Valve."), about);
         description->setWordWrap(true);
         aboutLayout->addWidget(description);
@@ -77,6 +93,13 @@ class Panel final : public QObject {
         aboutLayout->addWidget(link);
         aboutLayout->addStretch();
         tabs_->addTab(about, QStringLiteral("About"));
+        extensionRows_ = new QTreeWidget(tabs_);
+        extensionRows_->setObjectName("HammerAddonsExtensions");
+        extensionRows_->setHeaderLabels({"Add-on", "Extension", "Target", "Status in this window"});
+        extensionRows_->setRootIsDecorated(false);
+        extensionRows_->header()->setSectionResizeMode(QHeaderView::ResizeToContents);
+        extensionRows_->header()->setStretchLastSection(true);
+        tabs_->addTab(extensionRows_, "Extensions");
         auto* layout = new QVBoxLayout(panel);
         auto* heading = new QHBoxLayout;
         auto* active = new QLabel(QStringLiteral("Loader active"), panel);
@@ -161,13 +184,29 @@ class Panel final : public QObject {
         const size_t actual = host_.read_status(host_.context, data.data(), size);
         if (!actual || actual > size) return; // Snapshot grew or callbacks are busy; retry next tick.
         data.resize(static_cast<int>(actual - 1));
-        if (data == previous_) return;
+        if (data == previous_) {
+            if (extensions_) { refresh_extensions(extensions_,snapshot_["contributions"].toArray()); render_extensions(); }
+            return;
+        }
         QJsonParseError error;
         const auto document = QJsonDocument::fromJson(data, &error);
         if (error.error != QJsonParseError::NoError || !document.isObject()) return;
         previous_ = data;
         snapshot_ = document.object();
+        if (extensions_) { refresh_extensions(extensions_,snapshot_["contributions"].toArray()); render_extensions(); }
         render();
+    }
+    void render_extensions() {
+        const auto bindings=extension_status(extensions_);
+        if (bindings==previousBindings_) return;
+        previousBindings_=bindings;
+        extensionRows_->clear();
+        for (const auto& entry:bindings) {
+            const auto row=entry.toObject();
+            auto* item=new QTreeWidgetItem(extensionRows_, {row["owner"].toString(),row["label"].toString(),
+                row["target"].toString().isEmpty() ? QString("Workshop Add-ons") : row["target"].toString(),row["binding"].toString()});
+            item->setToolTip(3,item->text(3));
+        }
     }
     void render() {
         const auto& status = snapshot_;
@@ -204,6 +243,7 @@ class Panel final : public QObject {
 public:
     Panel(const HA_UiHost& host, QMainWindow* window) : QObject(window), host_(host) {
         attach(window);
+        extensions_ = attach_extensions(window,window_tool(window->windowTitle()),host_);
         auto* timer = new QTimer(this);
         connect(timer, &QTimer::timeout, this, [this] { tick(); });
         timer->start(750);
@@ -217,12 +257,7 @@ class Controller final : public QObject {
             auto* window = qobject_cast<QMainWindow*>(widget);
             if (!window || !window->isVisible() || window->findChild<QDockWidget*>("HammerAddonsDock"))
                 continue;
-            const auto title = window->windowTitle();
-            bool supported = false;
-            for (const auto& name : {QStringLiteral("Asset Browser"), QStringLiteral("Hammer"), QStringLiteral("Source 2 Tools")}) {
-                supported |= title == name || title.startsWith(name + QStringLiteral(" -")) ||
-                    title.endsWith(QStringLiteral(" - ") + name);
-            }
+            const bool supported = !window_tool(window->windowTitle()).isEmpty();
             if (supported) new Panel(host_, window);
         }
     }

@@ -71,6 +71,14 @@ static size_t __cdecl read_status(void*, char* destination, size_t capacity) {
         return json.size() + 1;
     } catch (...) { return 0; }
 }
+static int __cdecl invoke(void*, uint64_t handle, const char* tool, const char* phase,
+                          const char* control, const char* value, char* response, size_t capacity) {
+    try { return runtime->invoke(handle,tool,phase,control,value,response,capacity); }
+    catch (...) { return HA_ERROR; }
+}
+static void __cdecl report_binding(void*, uint64_t handle, const char* tool, const char* message) {
+    try { runtime->report_binding(handle,tool,message); } catch (...) {}
+}
 static void start_ui() {
     // Asset Browser can request its factory before QApplication exists. Retry from
     // a worker; HA_StartUi only queues widgets onto the application's GUI thread.
@@ -78,7 +86,7 @@ static void start_ui() {
         try {
             HMODULE module = nullptr;
             HA_UiStart start = nullptr;
-            static const HA_UiHost host{sizeof(HA_UiHost), nullptr, read_status};
+            static const HA_UiHost host{sizeof(HA_UiHost), nullptr, read_status, invoke, report_binding};
             for (unsigned attempt = 0; attempt < 120; ++attempt) {
                 if (!module && GetModuleHandleW(L"Qt5Widgets.dll")) {
                     const auto file = loader_directory() / "hammer_addons_ui.dll";

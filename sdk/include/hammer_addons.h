@@ -14,6 +14,8 @@ extern "C" {
 #define HA_CAP_LOGGING UINT64_C(1)
 #define HA_CAP_FACTORY_EVENTS UINT64_C(2)
 
+struct HA_ExtensionsV1;
+
 typedef struct HA_HostV1 {
     uint32_t size;
     uint32_t abi_version;
@@ -21,6 +23,8 @@ typedef struct HA_HostV1 {
     void* context;
     void (HA_CALL *log)(void* context, const char* message);
     const char* addon_directory;
+    /* Optional appended extension table; check size via HA_GetExtensions. */
+    const struct HA_ExtensionsV1* extensions;
 } HA_HostV1;
 
 typedef struct HA_EventV1 {

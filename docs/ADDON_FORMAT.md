@@ -67,15 +67,22 @@ Available host capabilities:
 | --- | --- |
 | `HA_CAP_LOGGING` | `host->log(context, message)` and the add-on directory |
 | `HA_CAP_FACTORY_EVENTS` | `tools.factory.request`, with the requested interface name as value |
+| `HA_CAP_UI` | Commands, shortcuts and standard-control dock panels |
+| `HA_CAP_SETTINGS` | Per-user, per-add-on string settings |
+| `HA_CAP_MENU_HOOKS` | Before/after and suppression of exposed menu actions |
+| `HA_CAP_IMPORTERS` | Filtered file handlers and importer-choice routes |
 
 The Asset Browser entry point emits these events after Valve's
 `CreateInterface` returns. They are observations of interface requests, **not document-change events or proof that the editor UI
 is initialized**. `host.test` is emitted only by the standalone test host.
-The loader has shared status panels in Asset Browser and Hammer. No map editing,
-cursor, selection or add-on UI registration API is implemented yet.
+Include `hammer_extensions.h` for the [UI and workflow extension contract](EXTENSIONS.md).
+Its optional host-table pointer is appended after the original ABI-1 prefix;
+compiled older add-ons remain compatible. Map editing, cursor and selection APIs
+are not implemented.
 
-Callbacks are serialized on the thread invoking the factory. That thread is not
-guaranteed to be the editor UI thread. Do not block it or manipulate undocumented
+Lifecycle and factory callbacks run on the invoking thread, which is not
+guaranteed to be the editor UI thread. UI extension callbacks run on the Qt GUI
+thread. All callback dispatch is serialized, and busy factory observations are skipped. Do not block it or manipulate undocumented
 editor objects from these callbacks. Calling the proxy factory from a callback
 still forwards the request to Valve and preserves its pointer/result. A
 process-wide, nonblocking observation guard suppresses additional notifications

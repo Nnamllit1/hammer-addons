@@ -5,8 +5,8 @@ and a shared add-on manager. It loads once through Asset Browser and hosts
 add-ons in the Workshop Tools process.
 
 The framework provides native DLL loading, lifecycle callbacks, logging,
-interface-request observations, and a manager for viewing add-on status and
-filtering by supported tool. Use it to install compatible add-ons or build your
+interface-request observations, add-on panels and commands, persistent settings,
+menu-action hooks, custom file handlers, and a manager with tool filters. Use it to install compatible add-ons or build your
 own against the included SDK.
 
 This is an unofficial project, independent of Valve.
@@ -24,6 +24,7 @@ The first build downloads the matching Qt 5.15.2 development package (33 MiB)
 from Qt's official archive, verifies its pinned SHA256, and caches it under
 `build/deps`. Later builds use the cache. The distribution contains our
 `assetbrowser.dll` proxy, UI DLL, standalone host, SDK and `hello` sample.
+Optional feature examples are built into `dist/examples/addons/`.
 It uses Workshop Tools' existing Qt runtime; no Qt DLLs are installed.
 Tests use fixture DLLs and temporary folders, so CS2 is not required.
 
@@ -114,15 +115,25 @@ appear as **Unspecified**. These tags describe intended tools for discovery;
 they do not assert that an editor is open or delay DLL startup.
 The Asset Browser entry point emits `tools.factory.request` observations.
 
+Use `--template commands`, `--template panel_settings`, `--template menu_hooks`
+or `--template note_import` to start from a feature example. Each SDK feature has
+[a corresponding example add-on](docs/EXTENSIONS.md#examples).
+
 ## Current capabilities and limitations
 
 The manager is available in Asset Browser and through Hammer's Help menu.
 Tool tags identify an add-on's intended use; they do not provide editor APIs
 or imply that an integration exists for every listed tool.
 
-The SDK currently exposes logging and factory-request observations. Document
-editing APIs, add-on-owned panels, command registration and hot reload are not
-implemented. Add-on changes require restarting Workshop Tools.
+Add-ons can register commands and shortcuts, create dock panels with standard
+controls, persist settings, wrap existing menu actions, and handle selected file
+formats. The **Extensions** tab shows attached and waiting registrations for the
+current window. See the [extension API and examples](docs/EXTENSIONS.md).
+
+Hooks extend exposed Qt menu actions. Arbitrary native function interception,
+document editing APIs, model conversion, and hot reload are not implemented.
+A specific importer needs a verified action target and its own conversion logic.
+Add-on changes require restarting Workshop Tools.
 
 See the [API contract](docs/ADDON_FORMAT.md) for callback and threading rules,
 [architecture](docs/ARCHITECTURE.md) for implementation details, and

@@ -69,7 +69,7 @@ static std::map<std::string, std::string> manifest(const fs::path& file) {
     if (values.contains("tools")) tool_tags(values.at("tools"));
     return values;
 }
-Runtime::Runtime(fs::path root) : root_(std::move(root)) {}
+Runtime::Runtime(fs::path root, fs::path settings_root) : settings_(std::move(settings_root)), root_(std::move(root)) {}
 void Runtime::log(const std::string& message) {
     std::lock_guard guard(log_mutex_);
     // Logs are best effort: a read-only installation must not break Hammer.
@@ -126,12 +126,19 @@ Summary Runtime::start() {
             if (!query) throw std::runtime_error("HA_Query export missing");
             current->api = query(HA_ABI_VERSION);
             const auto* api = current->api;
-            constexpr uint64_t capabilities = HA_CAP_LOGGING | HA_CAP_FACTORY_EVENTS;
+            constexpr uint64_t capabilities = HA_CAP_LOGGING | HA_CAP_FACTORY_EVENTS | HA_CAP_UI | HA_CAP_SETTINGS | HA_CAP_MENU_HOOKS | HA_CAP_IMPORTERS;
             if (!api || api->size < sizeof(HA_AddonV1) || api->abi_version != HA_ABI_VERSION ||
                 !api->id || current->id != api->id || !api->on_load || (api->required_capabilities & ~capabilities))
                 throw std::runtime_error("add-on ABI, ID or required capabilities do not match");
-            current->host = {sizeof(HA_HostV1), HA_ABI_VERSION, capabilities, current, addon_log, current->directory.c_str()};
-            if (api->on_load(&current->host) != 1) throw std::runtime_error("on_load failed");
+            static const HA_ExtensionsV1 extension_api{sizeof(HA_ExtensionsV1), HA_EXTENSIONS_VERSION,
+                register_contribution, get_setting, set_setting};
+            current->host = {sizeof(HA_HostV1), HA_ABI_VERSION, capabilities, current, addon_log, current->directory.c_str(), &extension_api};
+            current->registering = true;
+            int loaded = 0;
+            try { loaded = api->on_load(&current->host); }
+            catch (...) { current->registering = false; throw; }
+            current->registering = false;
+            if (loaded != 1) throw std::runtime_error("on_load failed");
             current->active = true;
             status.state = "Loaded";
             status.detail = "Ready";
@@ -150,7 +157,10 @@ Summary Runtime::start() {
     return result;
 }
 void Runtime::event(const char* name, const char* value) {
-    std::lock_guard guard(callbacks_);
+    std::unique_lock guard(callbacks_, std::try_to_lock);
+    if (!guard.owns_lock() || dispatching_) return;
+    dispatching_ = true;
+    struct Reset { bool& value; ~Reset() { value = false; } } reset{dispatching_};
     const HA_EventV1 event{sizeof(HA_EventV1), name, value};
     for (auto& addon : addons_) if (addon->active && addon->api->on_event) {
         try { addon->api->on_event(&event); }
@@ -169,16 +179,6 @@ void Runtime::shutdown() {
         catch (...) { log("shutdown callback threw: " + (*it)->id); }
     }
 }
-static std::string quote(const std::string& value) {
-    std::string out = "\"";
-    constexpr char hex[] = "0123456789abcdef";
-    for (unsigned char ch : value) {
-        if (ch == '"' || ch == '\\') { out += '\\'; out += ch; }
-        else if (ch < 32) { out += "\\u00"; out += hex[ch >> 4]; out += hex[ch & 15]; }
-        else out += ch;
-    }
-    return out + '"';
-}
 void Runtime::initialization_error(const std::string& error) {
     std::lock_guard guard(callbacks_);
     notice_ = "Add-on initialization failed: " + error;
@@ -189,21 +189,101 @@ std::string Runtime::status_json() {
     std::unique_lock guard(callbacks_, std::try_to_lock);
     if (!guard.owns_lock()) return {};
     const auto path = fs::absolute(root_ / "addons").u8string();
-    std::string out = "{\"directory\":" + quote(std::string(path.begin(), path.end())) +
-        ",\"notice\":" + quote(notice_) + ",\"addons\":[";
+    std::string out = "{\"directory\":" + json_quote(std::string(path.begin(), path.end())) +
+        ",\"notice\":" + json_quote(notice_) + ",\"addons\":[";
     bool first = true;
     for (const auto& status : statuses_) {
         if (!first) out += ',';
         first = false;
-        out += "{\"id\":" + quote(status.id) + ",\"version\":" + quote(status.version) +
-            ",\"state\":" + quote(status.state) + ",\"detail\":" + quote(status.detail) + ",\"tools\":[";
+        out += "{\"id\":" + json_quote(status.id) + ",\"version\":" + json_quote(status.version) +
+            ",\"state\":" + json_quote(status.state) + ",\"detail\":" + json_quote(status.detail) + ",\"tools\":[";
         for (size_t i = 0; i < status.tools.size(); ++i) {
             if (i) out += ',';
-            out += quote(status.tools[i]);
+            out += json_quote(status.tools[i]);
         }
         out += "]}";
     }
+    out += "],\"contributions\":[";
+    first = true;
+    for (const auto& addon : addons_) if (addon->active) {
+        for (const auto& contribution : addon->contributions) {
+            if (!first) out += ',';
+            first = false;
+            out += contribution_json(contribution);
+        }
+    }
     return out + "]}";
+}
+
+uint64_t HA_CALL Runtime::register_contribution(void* context, const HA_ContributionV1* definition) {
+    auto* addon = static_cast<Addon*>(context);
+    try {
+        std::unique_lock guard(addon->owner->callbacks_, std::try_to_lock);
+        if (!guard.owns_lock() || !addon->registering || !definition || addon->contributions.size() >= 128) return 0;
+        auto contribution = copy_contribution(addon->id, addon->owner->next_handle_, *definition);
+        for (const auto& existing : addon->contributions) if (existing.id == contribution.id) return 0;
+        addon->contributions.push_back(std::move(contribution));
+        return addon->owner->next_handle_++;
+    } catch (const std::exception& error) {
+        addon->owner->log(addon->id + ": extension registration rejected: " + error.what());
+        return 0;
+    } catch (...) { return 0; }
+}
+size_t HA_CALL Runtime::get_setting(void* context, const char* key, char* output, size_t capacity) {
+    auto* addon = static_cast<Addon*>(context);
+    return addon->owner->settings_.get(addon->id, key, output, capacity);
+}
+int HA_CALL Runtime::set_setting(void* context, const char* key, const char* value) {
+    auto* addon = static_cast<Addon*>(context);
+    return addon->owner->settings_.set(addon->id, key, value) ? 1 : 0;
+}
+int Runtime::invoke(uint64_t handle, const char* tool, const char* phase, const char* control,
+                    const char* value, char* response, size_t capacity) {
+    if (response && capacity) response[0] = 0;
+    std::unique_lock guard(callbacks_, std::try_to_lock);
+    if (!guard.owns_lock() || dispatching_) return HA_BUSY;
+    if (!tool || !phase || !control || !value) return HA_ERROR;
+    for (auto& addon : addons_) if (addon->active) {
+        for (const auto& c : addon->contributions) {
+            if (c.handle != handle || (c.tool != "all" && c.tool != tool)) continue;
+            const std::string event_phase(phase);
+            if ((c.kind == HA_COMMAND && event_phase != "command") ||
+                ((c.kind == HA_IMPORTER || c.kind == HA_IMPORT_ROUTE) && event_phase != "import") ||
+                (c.kind == HA_MENU_HOOK && event_phase != "hook.before" && event_phase != "hook.after") ||
+                (c.kind == HA_PANEL && event_phase != "panel.change" && event_phase != "panel.click")) return HA_ERROR;
+            if (c.kind == HA_PANEL) {
+                const auto found = std::find_if(c.controls.begin(),c.controls.end(),[&](const Control& v) { return v.id == control; });
+                if (found == c.controls.end() || found->kind == HA_LABEL ||
+                    (event_phase == "panel.click") != (found->kind == HA_BUTTON)) return HA_ERROR;
+            }
+            if (c.kind == HA_IMPORTER || c.kind == HA_IMPORT_ROUTE) {
+                const auto file = fs::path(std::u8string(reinterpret_cast<const char8_t*>(value)));
+                if (!file.is_absolute() || !fs::is_regular_file(file)) return HA_ERROR;
+                auto ext = file.extension().string();
+                std::transform(ext.begin(),ext.end(),ext.begin(),[](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+                if (ext.size() < 2 || ("," + c.options + ",").find("," + ext.substr(1) + ",") == std::string::npos) return HA_ERROR;
+            }
+            dispatching_ = true;
+            struct Reset { bool& value; ~Reset() { value = false; } } reset{dispatching_};
+            const HA_InteractionV1 event{sizeof(HA_InteractionV1),tool,phase,control,value};
+            try {
+                const int result = c.callback(c.user,&event,response,capacity);
+                if (response && capacity) response[capacity-1] = 0;
+                return result == HA_CONTINUE || result == HA_HANDLED ? result : HA_ERROR;
+            } catch (...) {
+                addon->active = false;
+                auto& state = statuses_[addon->status_index];
+                state.state = "Failed";
+                state.detail = "Extension callback threw a C++ exception";
+                log(addon->id + ": " + state.detail);
+                return HA_ERROR;
+            }
+        }
+    }
+    return HA_ERROR;
+}
+void Runtime::report_binding(uint64_t handle, const char* tool, const char* message) {
+    log("UI binding " + std::to_string(handle) + " [" + (tool ? tool : "") + "]: " + (message ? message : ""));
 }
 
 }

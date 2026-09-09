@@ -87,3 +87,40 @@ This supersedes the earlier Hammer-only installation described above.
 - Opened Hammer and visually verified no additional top-level menu and no visible manager dock at startup. Invoked Help > Workshop Add-ons > About Hammer Addons; verified the About tab, version 0.1.0 and project link.
 - Tool tags are author-declared discovery metadata, not deferred activation or dependency enforcement. No ModelDoc editor API implementation is implied by its filter category.
 - Local evidence: build/evidence/tool-filter.png, build/evidence/hammer-hidden-manager.png, build/evidence/hammer-help-about.png.
+
+
+## UI and workflow extension SDK, 2026-09-09
+
+- Release build and both Qt integration executables passed. The native loader,
+  forwarding, installer and generator suite passed **35 scenarios**.
+- Real example DLLs exercise commands, standard panel controls, isolated persistent
+  settings, before/native/after menu callbacks, handled suppression, custom file
+  selection and built-in/custom importer routing.
+- Regression checks cover duplicate/late registrations, tool and phase scope,
+  missing/ambiguous targets, late menus and menu recreation, visible binding
+  diagnostics, cancelled selection, shortcut updates/restoration, busy callbacks,
+  exceptions removing only the failed add-on, and cleanup at runtime shutdown.
+- All five packaged generator templates compile and load against the packaged SDK.
+- Live Workshop Tools process 9888 loaded commands, the existing compiled untagged
+  hello, menu_hooks, note_import and panel_settings. The original hello DLL and
+  manifest were preserved, demonstrating old ABI-1 add-on compatibility.
+- Visually verified the example dock and its five control types in Asset Browser,
+  five loaded add-ons, the Extensions tab, native File-menu placement and the
+  command callback's status-bar response. All Asset Browser bindings reported
+  Attached, including Help/About. The framework still installs two DLLs; no Qt
+  runtime DLLs or per-editor loader DLLs were added.
+- The live native popup-menu automation was inconsistent. Do not treat it as
+  evidence of a completed native file-picker callback or native ModelDoc import.
+  These callback/routing behaviors are verified by the automated Qt fixture.
+- The note example's ModelDoc File/Import target is unverified and remains waiting
+  when absent. It is not a Blender/model converter or a document-editing API.
+- Local visual evidence: build/evidence/extensions-panel.png,
+  build/evidence/extensions-command.png, build/evidence/extensions-bindings.png.
+- Final built proxy SHA256:
+  a95d25a7c0eb12546156c69e0b6ac921b4ef3ccf557117cc1dfce7fe792b54c9.
+- Final built UI SHA256:
+  7ebe1547a94da899a36137072340e740798d27f8b4aa2c2e42cc500fc1a1b05e.
+- Installed the final UI hash above and reopened Workshop Tools as process 31760.
+  All five add-ons loaded and all five Asset Browser registrations attached.
+  Original Valve Hammer retained SHA256
+  b4755b0a909d0d19ca35f14346643765b32eb4bc18951a777991549ce913dd78.

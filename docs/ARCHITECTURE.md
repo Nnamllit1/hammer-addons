@@ -1,9 +1,7 @@
 # Workshop Tools add-on framework
 
 Hammer Addons supplies general native add-on infrastructure for CS2 Workshop
-Tools. Hammer is the first editor focus. A future Hammer multiplayer project
-will consume this framework separately; collaboration and networking are not
-milestones of this repository.
+Tools. A single runtime serves editors in the same tools process.
 
 ## Startup and ownership
 
@@ -50,10 +48,10 @@ The UI DLL uses public Qt 5.15.2 Widgets APIs matching the supported tools build
 A worker retries UI startup for up to 60 seconds if Qt or QApplication is not
 ready yet. Widget creation is queued onto the Qt application thread.
 
-The controller discovers visible Asset Browser, Hammer and Source 2 Tools
-QMainWindows. Each supported window owns one dock. Asset Browser displays it at startup with
+The controller recognizes visible Asset Browser, Source 2 Tools, Hammer,
+ModelDoc, Material Editor and Particle Editor QMainWindows by title. Each supported window owns one dock. Asset Browser displays it at startup with
 a top-level manager menu. Hammer starts with the dock hidden and places its
-manager submenu under Help. Both offer Add-ons and About tabs. Panels close and
+manager submenu under Help. The manager offers Add-ons, About and Extensions tabs. Panels close and
 reopen independently, refresh from the same runtime, and are recreated with
 their parent editor. Manifest tool tags are discovery metadata used by each
 panel's independent filter; they do not change shared startup or callback
@@ -62,8 +60,15 @@ live verification covers Asset Browser and Hammer.
 
 A private C bridge copies JSON status snapshots; no Qt or STL ownership crosses
 DLL boundaries. Refreshes skip a busy callback lock rather than blocking the UI.
-Qt runtime DLLs are neither packaged nor replaced. The public SDK has not yet
-exposed panel registration to add-ons.
+Qt runtime DLLs are neither packaged nor replaced. The extension SDK copies registration descriptors during on_load. The UI adapter
+owns per-window commands, docks and menu wrappers; a private C invocation bridge
+dispatches callbacks by handle. No Qt objects cross the public SDK. Missing or
+ambiguous action targets stay pending, and binding status appears in Extensions.
+
+Menu hooks preserve the original QAction, transfer its shortcut and invoke it
+only after before-handlers continue. Import routes add a handler chooser with a
+built-in path. They do not intercept native function calls or expose document
+objects. See [extension contracts and examples](EXTENSIONS.md).
 
 ## Compatibility and development
 
@@ -74,16 +79,15 @@ verified original for the recorded module. Steam updates require re-inspection.
 
 The framework roadmap is:
 1. Improve the shared manager and add-on diagnostics.
-2. Define UI and command registration with explicit lifetime/thread contracts.
+2. Extend the UI API with dynamic control updates and asynchronous jobs.
 3. Add dependency, capability and version negotiation.
-4. Validate editor adapters, starting with Hammer document/selection operations
-   and native undoable transactions.
+4. Validate editor adapters for document/selection operations and native
+   undoable transactions.
 5. Establish a lifecycle protocol before implementing native hot reload.
 
 Finding interface names or Qt types in a binary does not establish a supported
 editor SDK. Only verified interfaces belong in adapters; do not guess vtables,
-document layouts or offsets. Multiplayer session behavior belongs in its own
-project using the capabilities exposed by this framework.
+document layouts or offsets.
 
 ## References
 
