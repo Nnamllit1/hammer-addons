@@ -1,6 +1,7 @@
 # Hammer Addons format 1 / native ABI 1
 
-An add-on is a directory inside `game/bin/win64/tools/hammer-addons/addons/`.
+An add-on is a directory inside the portable package's `addons/` folder.
+Older proxy installations used `game/bin/win64/tools/hammer-addons/addons/`.
 The directory name must match its manifest ID. For example:
 
 ```text
@@ -61,18 +62,20 @@ checks the struct size, ABI, ID, required capabilities and on_load callback.
 `on_load` receives a stable host table; return 1 on success, 0 on failure.
 Clean up partial initialization before returning failure.
 
-Available host capabilities:
+Host capabilities (query the current host; not every entry point exposes all flags):
 
 | Flag | Available functionality |
 | --- | --- |
 | `HA_CAP_LOGGING` | `host->log(context, message)` and the add-on directory |
-| `HA_CAP_FACTORY_EVENTS` | `tools.factory.request`, with the requested interface name as value |
+| `HA_CAP_FACTORY_EVENTS` | Legacy proxy only: `tools.factory.request`, with the requested interface name as value |
 | `HA_CAP_UI` | Commands, shortcuts and standard-control dock panels |
 | `HA_CAP_SETTINGS` | Per-user, per-add-on string settings |
 | `HA_CAP_MENU_HOOKS` | Before/after and suppression of exposed menu actions |
 | `HA_CAP_IMPORTERS` | Filtered file handlers and importer-choice routes |
 
-The Asset Browser entry point emits these events after Valve's
+The portable launcher does not advertise factory observations. Its add-ons initialize
+on the runtime startup thread; UI callbacks retain their GUI-thread contract.
+The legacy Asset Browser proxy emits these events after Valve's
 `CreateInterface` returns. They are observations of interface requests, **not document-change events or proof that the editor UI
 is initialized**. `host.test` is emitted only by the standalone test host.
 Include `hammer_extensions.h` for the [UI and workflow extension contract](EXTENSIONS.md).
@@ -99,7 +102,7 @@ called from DLL_PROCESS_DETACH or guaranteed at editor termination. Native hot
 reload requires a future protocol for detaching hooks, callbacks and threads.
 Flush important state during normal execution.
 
-Set `enabled=false` to disable an add-on, or create `hammer-addons/disabled` to
+Set `enabled=false` to disable an add-on, or create `disabled` beside the runtime DLL to
 disable all add-ons while retaining original tools forwarding. Restart Workshop Tools.
 The Workshop Add-ons dock lists loaded, disabled and failed add-ons with reasons.
 Its top menu reopens the dock and opens the add-ons folder. Diagnostics also go to `hammer-addons/loader.log`, stdout and OutputDebugString.

@@ -48,7 +48,11 @@ if ($Test) {
         $env:QT_QPA_PLATFORM = $savedPlatform
         $env:QT_PLUGIN_PATH = $savedPlugins
     }
+    & python "$PSScriptRoot\scripts\test-launcher.py" --bin "$PSScriptRoot\build\native\$Configuration"
+    if ($LASTEXITCODE) { exit $LASTEXITCODE }
     & python "$PSScriptRoot\scripts\test-loader.py" --bin "$PSScriptRoot\build\native\$Configuration"
     if ($LASTEXITCODE) { exit $LASTEXITCODE }
 }
+& python "$PSScriptRoot\scripts\package-launcher.py" --dist "$PSScriptRoot\dist"
+if ($LASTEXITCODE) { exit $LASTEXITCODE }
 Write-Host "Hammer Addons is ready in $PSScriptRoot\dist"

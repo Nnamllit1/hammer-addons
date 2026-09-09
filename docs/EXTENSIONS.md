@@ -12,14 +12,14 @@ Every public SDK feature has an example:
 
 | Example | Features |
 | --- | --- |
-| [hello](../addons/hello/hello.cpp) | Loading, logging, factory observations, shutdown |
+| [hello](../addons/hello/hello.cpp) | Loading, logging, shutdown; factory observations on the legacy proxy |
 | [commands](../addons/commands/commands.cpp) | Menu command, shortcut, tool scope, callback feedback |
 | [panel_settings](../addons/panel_settings/panel_settings.cpp) | Dock panel, label, button, text field, checkbox, choice, persistent settings |
 | [menu_hooks](../addons/menu_hooks/menu_hooks.cpp) | Before/after callbacks and suppressing an existing menu action |
 | [note_import](../addons/note_import/note_import.cpp) | File extension filters, file callback, extending an import action with a handler chooser |
 
 Builds put optional example DLLs in `dist/examples/addons/`. Copy selected example
-folders into the installed loader's `addons/` directory and restart Workshop
+folders into the portable package's `addons/` directory and restart Workshop
 Tools. Only `hello` is installed by default. Example source is also packaged.
 
 Generate an independently buildable project:

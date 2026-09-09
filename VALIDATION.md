@@ -124,3 +124,34 @@ This supersedes the earlier Hammer-only installation described above.
   All five add-ons loaded and all five Asset Browser registrations attached.
   Original Valve Hammer retained SHA256
   b4755b0a909d0d19ca35f14346643765b32eb4bc18951a777991549ce913dd78.
+
+
+## Portable CMD launcher, 2026-09-09
+
+- Added a portable CMD entry point backed by a native x64 launcher and runtime.
+  The shipped folder needs no Python or PowerShell installation. Steam libraries
+  are detected automatically; a CS2 folder/executable can be dropped onto the CMD.
+- Release build, both existing Qt tests, the new portable launcher integration
+  suite, and all **35 native integration scenarios passed**.
+- Launcher checks cover CMD paths with spaces/ampersands and dropped game paths,
+  restricted CLI options, original-DLL validation, normal-session rejection before
+  add-on initialization, runtime loading into a disposable Qt process, visible
+  add-on UI, and rejection of unavailable factory-observation capabilities.
+- Restored the real installation's verified original Asset Browser DLL using the
+  existing uninstaller. Its SHA256 is
+  eeb93ce111642027ffd91d6ae6bed4eae7973b70d29e74d64ba80ba9e714b3c8.
+  Existing add-ons were preserved and copied into the local portable test package.
+- Live process 21292 was created by the new launcher with -tools -insecure -nop4
+  -addon h2mcp_demo. Runtime and UI modules loaded from build/live-portable, while
+  assetbrowser.dll loaded from the original CS2 installation. No proxy backup or
+  replacement installation record remains active.
+- All five existing add-ons loaded. Asset Browser's manager and example panel were
+  visually verified. Binding logs show all Asset Browser contributions attached.
+  Local screenshot: build/evidence/portable-launcher.png.
+- The tested path uses ordinary Windows DLL loading into only the launcher's own
+  child; no global registry override, .local redirect or game-file replacement.
+  Secure-server matchmaking was not tested and no VAC certification is claimed.
+- Legacy CreateInterface observations are unavailable on the portable entry point;
+  HA_CAP_FACTORY_EVENTS is not advertised. Existing UI and settings APIs remain.
+- build.bat creates dist/hammer-addons-portable.zip with a fixed release file list,
+  excluding local logs, project preferences and additional installed add-ons.

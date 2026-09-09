@@ -1,11 +1,10 @@
 # Hammer Addons
 
 A native **add-on framework for CS2 Workshop Tools**, with a versioned C SDK
-and a shared add-on manager. It loads once through Asset Browser and hosts
-add-ons in the Workshop Tools process.
+and a shared add-on manager. A portable launcher loads it into a dedicated Workshop Tools session.
 
 The framework provides native DLL loading, lifecycle callbacks, logging,
-interface-request observations, add-on panels and commands, persistent settings,
+add-on panels and commands, persistent settings,
 menu-action hooks, custom file handlers, and a manager with tool filters. Use it to install compatible add-ons or build your
 own against the included SDK.
 
@@ -23,79 +22,46 @@ development with C++ and CMake tools.
 The first build downloads the matching Qt 5.15.2 development package (33 MiB)
 from Qt's official archive, verifies its pinned SHA256, and caches it under
 `build/deps`. Later builds use the cache. The distribution contains our
-`assetbrowser.dll` proxy, UI DLL, standalone host, SDK and `hello` sample.
+portable CMD launcher, native helper, runtime/UI DLLs, SDK and `hello` sample.
+Legacy proxies and a standalone host remain available for regression testing.
 Optional feature examples are built into `dist/examples/addons/`.
 It uses Workshop Tools' existing Qt runtime; no Qt DLLs are installed.
 Tests use fixture DLLs and temporary folders, so CS2 is not required.
 
-## Install into Workshop Tools
+## Launch Workshop Tools with add-ons
 
-Close CS2 and Workshop Tools, then substitute your Steam installation path:
+Extract **dist/hammer-addons-portable.zip** (or use **dist/portable/**) outside your CS2 installation and double-click
+**Launch Workshop Tools.cmd**. The complete folder is required: the CMD script,
+launcher EXE, runtime/UI DLLs and addons folder. End users do not need Python or
+PowerShell. The launcher detects Steam libraries; alternatively, drag the CS2
+folder or cs2.exe onto the CMD file.
 
-```powershell
-python scripts/loader.py inspect --cs2 "E:\SteamLibrary\steamapps\common\Counter-Strike Global Offensive"
-python scripts/loader.py install --cs2 "E:\SteamLibrary\steamapps\common\Counter-Strike Global Offensive" --apply
-```
+Choose a Workshop project if prompted. The launcher remembers successful choices;
+use `--choose-project` to change projects. Create a desktop shortcut to the CMD
+file, or add **tools_launcher.exe** as a non-Steam game for one-click launching
+from your Steam library. See the [launcher guide](docs/LAUNCHER.md).
 
-Omit `--apply` to preview. The installer checks the supported Asset Browser
-binary, backs it up byte-for-byte, then installs the proxy. Start Workshop Tools
-normally: the **Workshop Add-ons** panel appears in the **Asset Browser**.
-In Hammer, open it through **Help > Workshop Add-ons > Show add-ons**.
+The launcher starts its own `-tools -insecure` session and loads the framework
+from the portable folder. Normal gameplay uses Valve's original files through a
+fresh Steam launch. No Valve DLL is replaced and no global loader setting is changed.
 
-The panel shows **Loader active**, loaded/disabled/failed counts, and each
-add-on's version and status. Dock, float or close each panel independently.
-In Asset Browser, use **Workshop Add-ons > Show add-ons** to reopen it.
-In Hammer, the menu lives under **Help**, with no extra top-level menu or
-automatically opened dock. Both menus also offer **About Hammer Addons**, which
-opens the About tab with the framework version and project link.
-**Open add-ons folder** opens your installed add-ons.
+**Migrating an older installation:** close CS2 and run the existing uninstaller
+first. It restores the verified original DLL and preserves your add-ons. Copy
+those add-on folders into the portable package. The launcher refuses old proxy
+installations; [migration instructions](docs/LAUNCHER.md#migrating-a-replacement-dll-installation)
+explain the paths and command.
 
-The **Tool** filter and **Tools** column distinguish Asset Browser, Hammer,
-ModelDoc / Model Viewer, Material Editor and Particle Editor add-ons. Hammer
-defaults to its own filter. Counts reflect the displayed list; changing a filter
-does not load or unload DLLs.
+Drop compatible native add-ons into the portable `addons/` folder and restart
+Workshop Tools. Set `enabled=false` in an add-on manifest to disable it, or create
+a `disabled` file beside the portable runtime to disable all add-ons. Native
+add-ons execute with the editor's permissions and are not sandboxed.
 
-```text
-game/bin/win64/
-  assetbrowser.dll                 Framework entry point
-  assetbrowser_original.dll        Verified original Valve DLL
-  tools/
-    hammer.dll                     Original Valve Hammer
-    hammer-addons/
-      install.json                 Module and ownership hashes
-      loader.log
-      hammer_addons_ui.dll         Shared add-on manager
-      addons/hello/
-        addon.ini
-        hello.dll
-```
-
-Each add-on has its own folder under `tools/hammer-addons/addons/`. Drop
-compatible add-ons there and restart **Workshop Tools**. Set `enabled=false`
-in a manifest to disable one add-on, or create `tools/hammer-addons/disabled`
-to disable all add-ons while keeping original tools forwarding and the manager.
-Native add-ons run with Workshop Tools' permissions; they are not sandboxed.
-
-### Upgrading an earlier Hammer-only installation
-
-Run the current uninstaller first, then install again. It recognizes old
-installation records, restores the original Hammer DLL, and preserves add-on
-folders. The new installation starts from Asset Browser. Only one loader entry
-point should be installed at a time.
-
-```powershell
-python scripts/loader.py uninstall --cs2 "E:\SteamLibrary\steamapps\common\Counter-Strike Global Offensive" --apply
-python scripts/loader.py install --cs2 "E:\SteamLibrary\steamapps\common\Counter-Strike Global Offensive" --apply
-```
-
-The installer preserves differing existing add-on files by refusing to overwrite
-them. To keep a customized sample during an update, omit its folder from your
-new distribution before installing.
-
-Uninstall verifies hashes, restores the recorded original module, removes an
-unchanged framework UI DLL, and preserves add-ons. After a Steam update, inspect
-again. The tool refuses to overwrite a new Valve DLL with an older backup.
-Only module-specific builds in `compatibility.json` are accepted.
+The **Workshop Add-ons** manager appears in Asset Browser. Hammer keeps it under
+**Help > Workshop Add-ons**, hidden until opened. Its Add-ons tab shows loaded,
+disabled and failed packages and supports tool filters. The Extensions tab shows
+bindings for the current editor, and About links to the project documentation.
+Dock, float or close each panel independently. **Open add-ons folder** opens the
+portable package's add-ons directory.
 
 ## Write an add-on
 
@@ -113,7 +79,9 @@ add an optional `tools=asset_browser,hammer` manifest field to declare
 supported tools, or `tools=all` for a general add-on. Untagged older add-ons
 appear as **Unspecified**. These tags describe intended tools for discovery;
 they do not assert that an editor is open or delay DLL startup.
-The Asset Browser entry point emits `tools.factory.request` observations.
+Factory-request observations belong to the legacy proxy entry point. The portable
+launcher does not advertise `HA_CAP_FACTORY_EVENTS`; add-ons requiring that
+capability need to be adapted.
 
 Use `--template commands`, `--template panel_settings`, `--template menu_hooks`
 or `--template note_import` to start from a feature example. Each SDK feature has

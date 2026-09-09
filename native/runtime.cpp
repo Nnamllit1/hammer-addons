@@ -69,7 +69,7 @@ static std::map<std::string, std::string> manifest(const fs::path& file) {
     if (values.contains("tools")) tool_tags(values.at("tools"));
     return values;
 }
-Runtime::Runtime(fs::path root, fs::path settings_root) : settings_(std::move(settings_root)), root_(std::move(root)) {}
+Runtime::Runtime(fs::path root, fs::path settings_root, bool factory_events) : settings_(std::move(settings_root)), root_(std::move(root)), factory_events_(factory_events) {}
 void Runtime::log(const std::string& message) {
     std::lock_guard guard(log_mutex_);
     // Logs are best effort: a read-only installation must not break Hammer.
@@ -126,7 +126,7 @@ Summary Runtime::start() {
             if (!query) throw std::runtime_error("HA_Query export missing");
             current->api = query(HA_ABI_VERSION);
             const auto* api = current->api;
-            constexpr uint64_t capabilities = HA_CAP_LOGGING | HA_CAP_FACTORY_EVENTS | HA_CAP_UI | HA_CAP_SETTINGS | HA_CAP_MENU_HOOKS | HA_CAP_IMPORTERS;
+            const uint64_t capabilities = HA_CAP_LOGGING | (factory_events_ ? HA_CAP_FACTORY_EVENTS : 0) | HA_CAP_UI | HA_CAP_SETTINGS | HA_CAP_MENU_HOOKS | HA_CAP_IMPORTERS;
             if (!api || api->size < sizeof(HA_AddonV1) || api->abi_version != HA_ABI_VERSION ||
                 !api->id || current->id != api->id || !api->on_load || (api->required_capabilities & ~capabilities))
                 throw std::runtime_error("add-on ABI, ID or required capabilities do not match");

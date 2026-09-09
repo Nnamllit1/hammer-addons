@@ -3,7 +3,22 @@
 Hammer Addons supplies general native add-on infrastructure for CS2 Workshop
 Tools. A single runtime serves editors in the same tools process.
 
-## Startup and ownership
+## Portable startup
+
+The default user entry point is `Launch Workshop Tools.cmd`, which runs the
+bundled tools_launcher.exe. The launcher discovers CS2, checks the original Asset
+Browser hash and creates its own tools/insecure process. Its temporary Windows job
+owns startup failure cleanup. Windows loads hammer_addons_runtime.dll from the
+portable package; an explicit export starts add-ons outside DllMain once the tools
+application becomes ready. Both the launcher and runtime constrain this path to
+an insecure tools session. No existing game process is attached to.
+
+The runtime/UI DLLs and addons folder stay outside the game installation. All
+editor APIs except legacy factory observations use the existing runtime. The
+launcher does not advertise HA_CAP_FACTORY_EVENTS. See [launch and migration
+contracts](LAUNCHER.md) for the user workflow and limits.
+
+## Legacy proxy startup and ownership
 
 ```text
 CS2 Workshop Tools
