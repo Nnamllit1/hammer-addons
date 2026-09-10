@@ -27,9 +27,11 @@ int main(int argc,char** argv) {
         layout->addWidget(launch);
         window.setCentralWidget(content);
         window.show();
-        QTimer timer;int attempts=0;
+        QTimer timer;int attempts=0;bool buttonSettled=false;
         QObject::connect(&timer,&QTimer::timeout,[&]{
             if(auto* button=window.findChild<QPushButton*>("HammerAddonsPickerButton")) {
+                // A newly created status bar gets its geometry in the next Qt event pass.
+                if(!buttonSettled) {buttonSettled=true;return;}
                 if(window.centralWidget()!=content || button->width()<button->sizeHint().width() ||
                    button->height()<button->sizeHint().height() || !button->isVisible() ||
                    button->mapTo(&window,QPoint(0,0)).y()<content->geometry().bottom() ||
@@ -56,6 +58,24 @@ int main(int argc,char** argv) {
                     QMetaObject::invokeMethod(reminder,"editingFinished",Qt::DirectConnection);
                     read->click();
                     if(manager->statusBar()->currentMessage()!="Reminder: Fixture reminder") {app.exit(12);return;}
+                    auto* dock=manager->findChild<QDockWidget*>("HammerAddonsDock");
+                    if(!dock) {app.exit(14);return;}
+                    // Reproduce closing the undocked manager, then its empty host,
+                    // and reopening from the picker. Repeat to catch lost state.
+                    for(int cycle=0;cycle<2;++cycle) {
+                        dock->setFloating(true);
+                        dock->show();
+                        dock->close();
+                        manager->close();
+                        button->click();
+                        if(!manager->isVisible() || !dock->isVisible() || dock->isFloating() ||
+                           !rows->isVisible() || rows->topLevelItemCount()!=1 ||
+                           manager->findChildren<QDockWidget*>("HammerAddonsDock").size()!=1 ||
+                           reminder->text()!="Fixture reminder") {
+                            std::cerr<<"Reopening the picker manager did not restore its dock and contents.\n";
+                            app.exit(15);return;
+                        }
+                    }
                     timer.stop();QTimer::singleShot(1500,&app,[&app]{app.exit(0);});
                 }
             }

@@ -107,7 +107,7 @@ int wmain(int argc,wchar_t** argv) {
         const auto originalHash=hash(binary/L"assetbrowser.dll");
         bool supported=false;
         for(const auto* known:ha::supported_assetbrowser_hashes) supported|=originalHash==known;
-        if(!supported) throw std::runtime_error("Asset Browser does not match a supported original Valve build. Restore/verify your game files, or update the framework's compatibility profile.");
+        if(!supported) throw std::runtime_error("Asset Browser does not match a supported original Valve build (SHA256: "+originalHash+"). CS2 may have updated. Update Hammer Addons; if game files were modified, restore/verify them in Steam.");
         std::wcout<<L"CS2: "<<root.wstring()<<L"\nAdd-ons: "<<(folder/L"addons").wstring()<<L"\n";
         if(check) {std::cout<<"Original Valve Asset Browser verified. Portable package ready. No process started.\n";return 0;}
         if(cs2_running()) throw std::runtime_error("Close CS2 and Workshop Tools first. This launcher starts its own tools session and never attaches to an existing game.");

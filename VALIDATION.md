@@ -191,3 +191,34 @@ visibility, minimum size, status-bar ancestry and placement below that content,
 as well as opening the manager and interacting with the example. Launcher
 integration tests passed after the correction. Temporary diagnostic logging was
 removed from the shipping UI.
+
+
+## Picker manager reopening (2026-09-10)
+
+The picker button now restores and redocks the manager's Add-ons panel before
+showing its host window. Closing the floating dock and then the host no longer
+leaves an empty manager on the next click. Existing panel instances and add-on
+settings are retained.
+
+The picker fixture repeats undock -> close dock -> close host -> click picker
+button twice and checks visible docked contents, one manager dock and preserved
+example text. Launcher integration tests passed against the rebuilt UI DLL.
+The fixture allows one Qt event pass for initial status-bar geometry to settle.
+
+
+## CS2 build 25218825 compatibility (2026-09-10)
+
+Steam's installed app manifest reports build 25218825. The updated Asset Browser
+has SHA256 `a47a94eeff6f3e3f777ebdcbe3e6b6f6cdf064e0c527e3a2928ca52c6bbfe2e6`,
+a valid Valve Corp. Authenticode signature, x64 architecture and the expected six
+export names/ordinals. Qt remains 5.15.2.0. No replacement-loader install record
+exists. Added this inspected build alongside the previous supported hashes.
+
+The rebuilt launcher's --check passed. Launcher regression tests passed, including
+unknown-build rejection. Live picker PID 15904 loaded picker_notes; its CS2 child
+PID 31036 displayed Asset Browser with Loader active and 5 loaded / 0 failed.
+Menu/panel bindings attached. Local evidence is in build/compat-25218825.*.log and
+the portable loader.log. No Valve files were changed.
+
+Unknown-build errors now include the observed SHA256 and explain that a CS2 update
+may require a newer Hammer Addons release, instead of suggesting restoration first.

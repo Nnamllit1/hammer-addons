@@ -249,6 +249,20 @@ class Panel final : public QObject {
         notice_->setVisible(!notice.isEmpty());
     }
 public:
+    void reopen(QMainWindow* window) {
+        // Closing a floating dock hides it independently from its host window.
+        // The picker button must restore content as well as the outer window.
+        if(dock_) {
+            dock_->setFloating(false);
+            tabs_->setCurrentIndex(0);
+            dock_->show();
+            dock_->raise();
+        }
+        if(window->isMinimized()) window->showNormal();
+        else window->show();
+        window->raise();
+        window->activateWindow();
+    }
     Panel(const HA_UiHost& host, QMainWindow* window) : QObject(window), host_(host) {
         attach(window);
         extensions_ = attach_extensions(window,window_tool(window->windowTitle()),host_);
@@ -271,7 +285,7 @@ class Controller final : public QObject {
                 auto* manager=new QMainWindow(widget,Qt::Tool);
                 manager->setWindowTitle("Workshop Tools Add-ons");
                 manager->resize(700,500);
-                new Panel(host_,manager);
+                auto* panel=new Panel(host_,manager);
                 auto* button=new QPushButton("Workshop Add-ons",widget);
                 button->setToolTip("Add-on loader active. Open the add-on manager.");
                 button->setMinimumSize(button->sizeHint());
@@ -283,7 +297,7 @@ class Controller final : public QObject {
                 } else if(auto* box=qobject_cast<QBoxLayout*>(widget->layout())) {
                     box->addWidget(button,0,Qt::AlignRight);
                 }
-                connect(button,&QPushButton::clicked,manager,[manager]{manager->show();manager->raise();});
+                connect(button,&QPushButton::clicked,manager,[manager,panel]{panel->reopen(manager);});
             }
             auto* window = qobject_cast<QMainWindow*>(widget);
             if (!window || !window->isVisible() || window->findChild<QDockWidget*>("HammerAddonsDock"))

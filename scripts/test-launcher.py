@@ -76,7 +76,7 @@ def main():
         assert 'loaded picker_notes' in log and 'UI binding 1 [project_picker]: Attached' in log
         output = run([binaries / 'launch_test.exe', fixture / 'csgocfg.exe', package / 'hammer_addons_runtime.dll', 'picker-cancel'])
         assert 'Picker cancellation passed' in output
-    print('Portable launcher passed: CMD quoting, CLI restrictions, original-file validation, normal-session rejection, picker cancellation, selected-child handoff, picker panel/settings interaction and real DLL/UI initialization.')
+    print('Portable launcher passed: CMD quoting, CLI restrictions, original-file validation, normal-session rejection, picker cancellation, selected-child handoff, picker panel/settings interaction, undock/close/reopen recovery and real DLL/UI initialization.')
 
 if __name__ == '__main__':
     main()
