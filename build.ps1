@@ -32,6 +32,8 @@ if ($LASTEXITCODE) { exit $LASTEXITCODE }
 $legacyProxy = Join-Path $PSScriptRoot 'dist\hammer.dll'
 if (Test-Path -LiteralPath $legacyProxy) { Remove-Item -LiteralPath $legacyProxy -Force }
 if ($Test) {
+    & "$PSScriptRoot\build\native\$Configuration\runtime_test.exe" $PSScriptRoot
+    if ($LASTEXITCODE) { exit $LASTEXITCODE }
     $savedPath = $env:PATH
     $savedPlatform = $env:QT_QPA_PLATFORM
     $savedPlugins = $env:QT_PLUGIN_PATH

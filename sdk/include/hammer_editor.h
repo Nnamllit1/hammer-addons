@@ -4,7 +4,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#define HA_CAP_EDITOR_EVENTS UINT64_C(32)
+#define HA_CAP_EDITOR_EVENTS UINT64_C(128)
 #define HA_CAP_LIVE_PANELS UINT64_C(64)
 #define HA_EDITOR_VISIBLE 1u
 #define HA_EDITOR_ACTIVE 2u

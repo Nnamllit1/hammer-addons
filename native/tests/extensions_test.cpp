@@ -74,8 +74,12 @@ int main(int argc,char** argv) {
         const auto package=work/"hammer-addons";
         fs::create_directories(package);
         fs::create_directories(package/"addons");
-        for(const auto* name:{"commands","panel_settings","menu_hooks","note_import"})
-            fs::copy(root/"dist/examples/addons"/name,package/"addons"/name,fs::copy_options::recursive);
+        for(const auto* name:{"commands","panel_settings","menu_hooks","note_import"}) {
+            const auto folder=package/"addons"/name;
+            fs::create_directories(folder);
+            fs::copy_file(fs::path(QCoreApplication::applicationDirPath().toStdWString())/(std::string(name)+".dll"),folder/(std::string(name)+".dll"));
+            fs::copy_file(root/"addons"/name/"addon.ini",folder/"addon.ini");
+        }
         const auto probe=package/"addons/extension_probe";
         fs::create_directories(probe);
         fs::copy_file(fs::path(QCoreApplication::applicationDirPath().toStdWString())/"extension_probe.dll",probe/"extension_probe.dll");

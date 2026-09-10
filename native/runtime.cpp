@@ -71,20 +71,34 @@ static std::map<std::string, std::string> manifest(const fs::path& file) {
     return values;
 }
 Runtime::Runtime(fs::path root, fs::path settings_root, bool factory_events, std::string process_scope) : settings_(std::move(settings_root)), root_(std::move(root)), factory_events_(factory_events), process_scope_(std::move(process_scope)) {}
-void Runtime::log(const std::string& message) {
-    std::lock_guard guard(log_mutex_);
-    // Logs are best effort: a read-only installation must not break Hammer.
-    const std::string line = "[hammer-addons] " + message;
-    OutputDebugStringA((line + "\n").c_str());
-    std::cout << line << std::endl;
-    if (plain_path(root_ / "loader.log")) {
-        std::ofstream out(root_ / "loader.log", std::ios::app);
-        out << GetCurrentProcessId() << " " << line << '\n';
-    }
+void Runtime::log(std::string_view message) noexcept {
+    // A failing or reentrant sink must never unwind through the host ABI or
+    // prevent runtime initialization. Drop contended messages instead of waiting.
+    static thread_local bool logging = false;
+    if (logging) return;
+    logging = true;
+    struct Reset { bool& flag; ~Reset() { flag = false; } } reset{logging};
+    try {
+        std::unique_lock guard(log_mutex_, std::try_to_lock);
+        if (!guard.owns_lock()) return;
+        const std::string line = "[hammer-addons] " + std::string(message);
+        OutputDebugStringA((line + "\n").c_str());
+        try { std::cout << line << std::endl; } catch (...) {}
+        // Console failure must not suppress the file sink.
+        try {
+            if (plain_path(root_ / "loader.log")) {
+                std::ofstream out(root_ / "loader.log", std::ios::app);
+                out << GetCurrentProcessId() << " " << line << '\n';
+            }
+        } catch (...) {}
+    } catch (...) {}
 }
-void HA_CALL Runtime::addon_log(void* context, const char* message) {
-    auto* addon = static_cast<Addon*>(context);
-    if (message) addon->owner->log(addon->id + ": " + std::string(message).substr(0, 4096));
+void HA_CALL Runtime::addon_log(void* context, const char* message) noexcept {
+    try {
+        auto* addon = static_cast<Addon*>(context);
+        if (addon && message)
+            addon->owner->log(addon->id + ": " + std::string(message, strnlen_s(message, 4096)));
+    } catch (...) {}
 }
 Summary Runtime::start() {
     std::lock_guard guard(callbacks_);

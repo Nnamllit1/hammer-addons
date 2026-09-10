@@ -243,3 +243,30 @@ Live Asset Browser PID 31476 loaded editor_watch and live_status (7 add-ons tota
 identity and explicitly reported that the editor supplied no document path.
 Evidence: build/editor-context.*.log and the portable loader.log. This verifies
 window observation, not map data access or real-time editing.
+
+
+## Capability, logging and settings regressions (2026-09-10)
+
+Editor events now use capability 128, separate from importers (32) and live
+panels (64). A compile-time regression checks all advertised capability bits
+for uniqueness and single-bit values. Rebuild earlier editor-observer add-ons;
+public C ABI layouts and existing non-editor capability values are preserved.
+
+Runtime logging and its C callback are noexcept. Regression coverage forces
+console exceptions, checks the file sink still receives messages, loads the real
+hello add-on while the console fails, and exercises recursive logging and an
+unavailable file sink. Contended/reentrant log messages may be dropped.
+
+Settings writes use exclusive, per-write sibling temporary files. Tests cover
+stale and exclusively open legacy .pending files, failed-rename recovery and
+cleanup, and four independent settings instances writing the same key. The
+final persisted value is complete; future saves remain usable. Storage errors
+still return failure and concurrent successful writes use last replacement wins.
+
+The complete Release build.bat -Test pipeline passed: runtime, UI, editor and
+extension tests, portable launcher fixtures, and 35 native loader scenarios.
+Debug runtime, editor and extension targets also built and their tests passed.
+Editor/extension tests now load example DLLs from their own build configuration,
+and their CMake targets build the required examples automatically. The portable
+Release ZIP and locally installed editor_watch/live_status examples were rebuilt.
+This validation uses fixtures; no live CS2 session was started for these fixes.

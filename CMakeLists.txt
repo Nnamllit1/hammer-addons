@@ -109,3 +109,9 @@ add_executable(editor_test native/tests/editor_test.cpp native/runtime.cpp nativ
 target_include_directories(editor_test PRIVATE native sdk/include)
 target_link_libraries(editor_test PRIVATE hammer_addons_ui Qt5::Widgets)
 set_target_properties(editor_test PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+
+add_executable(runtime_test native/tests/runtime_test.cpp)
+target_link_libraries(runtime_test PRIVATE ha_runtime)
+add_dependencies(runtime_test hello)
+add_dependencies(editor_test editor_watch live_status extension_probe)
+add_dependencies(extensions_test commands panel_settings menu_hooks note_import extension_probe)

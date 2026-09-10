@@ -21,6 +21,7 @@ typedef struct HA_HostV1 {
     uint32_t abi_version;
     uint64_t capabilities;
     void* context;
+    /* Best effort: logging failures do not throw; busy/reentrant messages may be dropped. */
     void (HA_CALL *log)(void* context, const char* message);
     const char* addon_directory;
     /* Optional appended extension table; check size via HA_GetExtensions. */

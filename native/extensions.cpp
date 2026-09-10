@@ -1,6 +1,7 @@
 #include "extensions.h"
 #include "runtime.h"
 #include <algorithm>
+#include <atomic>
 #include <cstring>
 #include <fstream>
 #include <set>
@@ -102,25 +103,49 @@ size_t Settings::get(const std::string& addon, const char* key, char* output, si
         return value.size()+1;
     } catch (...) { return 0; }
 }
+namespace {
+// Own only the file created by this write, including cleanup after a failed rename.
+struct PendingSetting {
+    std::filesystem::path path;
+    HANDLE stream = INVALID_HANDLE_VALUE;
+    bool created = false;
+    ~PendingSetting() {
+        if (stream != INVALID_HANDLE_VALUE) CloseHandle(stream);
+        if (created) DeleteFileW(path.c_str());
+    }
+};
+}
 bool Settings::set(const std::string& addon, const char* key, const char* raw) {
     try {
         std::lock_guard lock(mutex_);
         if (root_.empty() || !id(addon) || !key || !id(key) || !raw) return false;
         const auto value = string(raw);
         const auto file = root_ / addon / (std::string(key)+".txt");
-        const auto temp = file.wstring()+L".pending";
-        if (!plain_path(file) || !plain_path(temp)) return false;
+        if (!plain_path(file)) return false;
         std::filesystem::create_directories(file.parent_path());
-        // Exclusive temporary creation prevents clobbering a concurrent tools session.
-        HANDLE stream = CreateFileW(temp.c_str(),GENERIC_WRITE,0,nullptr,CREATE_NEW,FILE_ATTRIBUTE_NORMAL,nullptr);
-        if (stream == INVALID_HANDLE_VALUE) return false;
+        static std::atomic<uint64_t> serial{0};
+        PendingSetting pending;
+        // A crashed writer's .pending file is not a lock. Independent sessions
+        // publish their own sibling files; the last successful rename wins.
+        for (unsigned attempt = 0; attempt < 128; ++attempt) {
+            pending.path = file.wstring() + L"." + std::to_wstring(GetCurrentProcessId()) +
+                L"." + std::to_wstring(serial.fetch_add(1, std::memory_order_relaxed)) + L".pending";
+            if (!plain_path(pending.path)) return false;
+            pending.stream = CreateFileW(pending.path.c_str(), GENERIC_WRITE, 0, nullptr,
+                CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
+            if (pending.stream != INVALID_HANDLE_VALUE) { pending.created = true; break; }
+            const auto error = GetLastError();
+            if (error != ERROR_FILE_EXISTS && error != ERROR_ALREADY_EXISTS) return false;
+        }
+        if (!pending.created) return false;
         DWORD written = 0;
-        bool ok = WriteFile(stream,value.data(),static_cast<DWORD>(value.size()),&written,nullptr) &&
-            written == value.size() && FlushFileBuffers(stream);
-        CloseHandle(stream);
-        if (ok) ok = MoveFileExW(temp.c_str(),file.c_str(),MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
-        if (!ok) DeleteFileW(temp.c_str());
-        return ok;
+        const bool ok = WriteFile(pending.stream, value.data(), static_cast<DWORD>(value.size()), &written, nullptr) &&
+            written == value.size() && FlushFileBuffers(pending.stream);
+        CloseHandle(pending.stream);
+        pending.stream = INVALID_HANDLE_VALUE;
+        if (!ok) return false;
+        return MoveFileExW(pending.path.c_str(), file.c_str(),
+            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
     } catch (...) { return false; }
 }
 }

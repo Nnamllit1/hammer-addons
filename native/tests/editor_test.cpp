@@ -55,12 +55,13 @@ int main(int argc,char** argv) {
     try {
         check(argc==2,"pass checkout root");
         const fs::path root=fs::path(QString::fromLocal8Bit(argv[1]).toStdWString());
+        fs::create_directories(root/"build/tests");
         QTemporaryDir temp(QString::fromStdWString((root/"build/tests/editor-XXXXXX").wstring()));
         check(temp.isValid(),"temp directory");
         const fs::path package=fs::path(temp.path().toStdWString())/"package";
         for(const auto* name:{"editor_watch","live_status","extension_probe"}) {
             const auto folder=package/"addons"/name;fs::create_directories(folder);
-            fs::copy_file(root/"build/native/Release"/(std::string(name)+".dll"),folder/(std::string(name)+".dll"));
+            fs::copy_file(fs::path(QCoreApplication::applicationDirPath().toStdWString())/(std::string(name)+".dll"),folder/(std::string(name)+".dll"));
             if(std::string(name)!="extension_probe")fs::copy_file(root/"addons"/name/"addon.ini",folder/"addon.ini");
             else std::ofstream(folder/"addon.ini")<<"[addon]\nformat=1\nid=extension_probe\nversion=0.1.0\nabi=1\nentry=extension_probe.dll\nenabled=true\n";
         }

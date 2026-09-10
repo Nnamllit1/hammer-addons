@@ -145,8 +145,11 @@ Settings live under `%LOCALAPPDATA%\HammerAddons\settings\<addon-id>\`.
 Keys follow the same ID rules; values are strings of at most 4096 bytes.
 `get_setting` returns required bytes including NUL, 1 for an absent key's empty
 string, or 0 on error. Undersized buffers are untouched. `set_setting` returns
-1 on success and 0 on failure. Writes use an exclusive temporary file and atomic
-replacement. Concurrent sessions can reject a competing write; check the result.
+1 on success and 0 on failure. Writes use a unique sibling temporary file per write and atomic
+replacement. A stale `.pending` file from an interrupted session does not block
+later saves. Concurrent sessions use last-successful-replacement wins semantics;
+I/O or sharing failures still return 0, so check the result. Failed writes clean
+up their own temporary files and leave the previous setting intact.
 Persist during normal execution because editor exit does not guarantee shutdown
 callbacks.
 

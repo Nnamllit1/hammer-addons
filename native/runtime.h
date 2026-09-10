@@ -7,6 +7,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace ha {
@@ -22,7 +23,7 @@ public:
                const char* value, char* response, size_t capacity, const HA_EditorStateV1* editor = nullptr);
     void report_binding(uint64_t handle, const char* tool, const char* message);
     void initialization_error(const std::string& error);
-    void log(const std::string& message);
+    void log(std::string_view message) noexcept;
 private:
     struct Status { std::string id, version, state, detail; std::vector<std::string> tools; };
     std::vector<Status> statuses_;
@@ -45,7 +46,7 @@ private:
     static size_t HA_CALL get_setting(void*, const char*, char*, size_t);
     static int HA_CALL set_setting(void*, const char*, const char*);
     static int HA_CALL set_panel_text(void*,uint64_t,const char*,const char*);
-    static void HA_CALL addon_log(void* context, const char* message);
+    static void HA_CALL addon_log(void* context, const char* message) noexcept;
     std::filesystem::path root_;
     std::vector<std::unique_ptr<Addon>> addons_;
     std::mutex log_mutex_;

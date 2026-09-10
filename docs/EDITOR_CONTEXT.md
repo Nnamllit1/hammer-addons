@@ -4,6 +4,10 @@ Include `hammer_editor.h` for editor-context helpers and live panel text updates
 These interfaces use ABI 1 with size-checked extensions to existing structures.
 No C++ or Qt object crosses the public DLL boundary.
 
+The editor-events capability is `128`; importers retain `32` and live panels
+retain `64`. Rebuild add-ons compiled with the earlier editor-events value `32`,
+which collided with importers. ABI structure layouts remain unchanged.
+
 ## Observe an editor
 
 Register an `HA_EDITOR_OBSERVER` contribution during `on_load`. Set its tool to
