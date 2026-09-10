@@ -1,5 +1,6 @@
 #include "runtime.h"
 #include <algorithm>
+#include <cstring>
 #include <fstream>
 #include <iostream>
 #include <map>
@@ -133,12 +134,12 @@ Summary Runtime::start() {
             if (!query) throw std::runtime_error("HA_Query export missing");
             current->api = query(HA_ABI_VERSION);
             const auto* api = current->api;
-            const uint64_t capabilities = HA_CAP_LOGGING | (factory_events_ ? HA_CAP_FACTORY_EVENTS : 0) | HA_CAP_UI | HA_CAP_SETTINGS | HA_CAP_MENU_HOOKS | HA_CAP_IMPORTERS;
+            const uint64_t capabilities = HA_CAP_LOGGING | (factory_events_ ? HA_CAP_FACTORY_EVENTS : 0) | HA_CAP_UI | HA_CAP_SETTINGS | HA_CAP_MENU_HOOKS | HA_CAP_IMPORTERS | HA_CAP_EDITOR_EVENTS | HA_CAP_LIVE_PANELS;
             if (!api || api->size < sizeof(HA_AddonV1) || api->abi_version != HA_ABI_VERSION ||
                 !api->id || current->id != api->id || !api->on_load || (api->required_capabilities & ~capabilities))
                 throw std::runtime_error("add-on ABI, ID or required capabilities do not match");
             static const HA_ExtensionsV1 extension_api{sizeof(HA_ExtensionsV1), HA_EXTENSIONS_VERSION,
-                register_contribution, get_setting, set_setting};
+                register_contribution, get_setting, set_setting, set_panel_text};
             current->host = {sizeof(HA_HostV1), HA_ABI_VERSION, capabilities, current, addon_log, current->directory.c_str(), &extension_api};
             current->registering = true;
             int loaded = 0;
@@ -244,8 +245,21 @@ int HA_CALL Runtime::set_setting(void* context, const char* key, const char* val
     auto* addon = static_cast<Addon*>(context);
     return addon->owner->settings_.set(addon->id, key, value) ? 1 : 0;
 }
+int HA_CALL Runtime::set_panel_text(void* context,uint64_t panel,const char* control,const char* value) {
+    auto* addon=static_cast<Addon*>(context);
+    try {
+        std::unique_lock lock(addon->owner->callbacks_,std::try_to_lock);
+        if(!lock.owns_lock() || (!addon->active && !addon->registering) || !control || !value ||
+           strnlen_s(control,65)>64 || strnlen_s(value,4097)>4096) return 0;
+        for(auto& c:addon->contributions) if(c.handle==panel && c.kind==HA_PANEL)
+            for(auto& v:c.controls) if(v.id==control && (v.kind==HA_LABEL || v.kind==HA_TEXT_VIEW)) {
+                v.value=value;return 1;
+            }
+    } catch(...) {}
+    return 0;
+}
 int Runtime::invoke(uint64_t handle, const char* tool, const char* phase, const char* control,
-                    const char* value, char* response, size_t capacity) {
+                    const char* value, char* response, size_t capacity, const HA_EditorStateV1* editor) {
     if (response && capacity) response[0] = 0;
     std::unique_lock guard(callbacks_, std::try_to_lock);
     if (!guard.owns_lock() || dispatching_) return HA_BUSY;
@@ -258,9 +272,12 @@ int Runtime::invoke(uint64_t handle, const char* tool, const char* phase, const 
                 ((c.kind == HA_IMPORTER || c.kind == HA_IMPORT_ROUTE) && event_phase != "import") ||
                 (c.kind == HA_MENU_HOOK && event_phase != "hook.before" && event_phase != "hook.after") ||
                 (c.kind == HA_PANEL && event_phase != "panel.change" && event_phase != "panel.click")) return HA_ERROR;
+            if(c.kind==HA_EDITOR_OBSERVER && (!editor || editor->size<sizeof(HA_EditorStateV1) ||
+                (event_phase!="editor.opened" && event_phase!="editor.changed" && event_phase!="editor.closed"))) return HA_ERROR;
+            if(c.kind!=HA_EDITOR_OBSERVER && editor) return HA_ERROR;
             if (c.kind == HA_PANEL) {
                 const auto found = std::find_if(c.controls.begin(),c.controls.end(),[&](const Control& v) { return v.id == control; });
-                if (found == c.controls.end() || found->kind == HA_LABEL ||
+                if (found == c.controls.end() || (found->kind == HA_LABEL || found->kind == HA_TEXT_VIEW) ||
                     (event_phase == "panel.click") != (found->kind == HA_BUTTON)) return HA_ERROR;
             }
             if (c.kind == HA_IMPORTER || c.kind == HA_IMPORT_ROUTE) {
@@ -272,7 +289,7 @@ int Runtime::invoke(uint64_t handle, const char* tool, const char* phase, const 
             }
             dispatching_ = true;
             struct Reset { bool& value; ~Reset() { value = false; } } reset{dispatching_};
-            const HA_InteractionV1 event{sizeof(HA_InteractionV1),tool,phase,control,value};
+            const HA_InteractionV1 event{sizeof(HA_InteractionV1),tool,phase,control,value,editor};
             try {
                 const int result = c.callback(c.user,&event,response,capacity);
                 if (response && capacity) response[capacity-1] = 0;

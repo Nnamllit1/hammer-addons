@@ -41,6 +41,8 @@ if ($Test) {
         $env:QT_PLUGIN_PATH = "$qt\plugins"
         & "$PSScriptRoot\build\native\$Configuration\ui_test.exe"
         if ($LASTEXITCODE) { exit $LASTEXITCODE }
+        & "$PSScriptRoot\build\native\$Configuration\editor_test.exe" $PSScriptRoot
+        if ($LASTEXITCODE) { exit $LASTEXITCODE }
         & "$PSScriptRoot\build\native\$Configuration\extensions_test.exe" $PSScriptRoot
         if ($LASTEXITCODE) { exit $LASTEXITCODE }
     } finally {

@@ -12,6 +12,8 @@ Every public SDK feature has an example:
 
 | Example | Features |
 | --- | --- |
+| [editor_watch](../addons/editor_watch/editor_watch.cpp) | Editor session/window metadata, lifecycle observations, read-only event history |
+| [live_status](../addons/live_status/live_status.cpp) | Programmatic label updates without overwriting editable inputs |
 | [hello](../addons/hello/hello.cpp) | Loading, logging, shutdown; factory observations on the legacy proxy |
 | [commands](../addons/commands/commands.cpp) | Menu command, shortcut, tool scope, callback feedback |
 | [picker_notes](../addons/picker_notes/picker_notes.cpp) | Project-picker opt-in, panel and persistent reminder |
@@ -33,7 +35,7 @@ cmake --install ../my_panel/build --config Release --prefix ../my_panel/package
 ```
 
 Templates are `hello`, `commands`, `panel_settings`, `menu_hooks` and
-`note_import` and `picker_notes`. `--tools` changes manifest tool tags. Change each
+`note_import`, `picker_notes`, `editor_watch` and `live_status`. `--tools` changes manifest tool tags. Change each
 contribution's `tool` and `target` in source to change its UI placement.
 
 ## Registration and ownership
@@ -60,7 +62,7 @@ must be tested against the specific tools build.
 - `HA_COMMAND`: a menu action; `options` optionally contains a portable
   shortcut such as `Ctrl+Alt+G`. Existing shortcut conflicts leave it waiting.
 - `HA_PANEL`: a menu action opens an add-on dock. Controls are `HA_LABEL`,
-  `HA_BUTTON`, `HA_TEXT`, `HA_CHECKBOX` and `HA_CHOICE`.
+  `HA_BUTTON`, `HA_TEXT`, `HA_CHECKBOX`, `HA_CHOICE` and read-only `HA_TEXT_VIEW`.
   A checkbox uses `0`/`1`; a choice uses a zero-based index and
   newline-separated option labels.
 - For these kinds, `target` is an existing menu path such as `File`.
@@ -69,9 +71,10 @@ must be tested against the specific tools build.
 Panels start hidden. Text changes dispatch on editing finished; checkbox and
 choice changes dispatch immediately; buttons dispatch `panel.click`.
 Initial values are registration-time snapshots. This version does not expose
-widget pointers, arbitrary layouts, embedded web views, or programmatic control
-updates. Settings are shared between windows; already-open controls do not
-automatically refresh when another window changes a setting.
+widget pointers, arbitrary layouts or embedded web views. Read-only labels and
+text views support [live text updates](EDITOR_CONTEXT.md#update-read-only-panel-output).
+Settings are shared between windows; editable controls do not automatically
+refresh when another window changes a setting.
 
 ## Existing actions and import workflows
 
@@ -166,3 +169,6 @@ python scripts/new-addon.py my_picker --template picker_notes --output ../my_pic
 
 Build it using the CMake steps above, then copy its package into `addons/` and
 restart the launcher. The picker runtime needs no additional DLL in the package.
+
+Editor metadata observers use `HA_EDITOR_OBSERVER`. See the [editor observation
+contract and examples](EDITOR_CONTEXT.md) for delivery, identity and limitations.

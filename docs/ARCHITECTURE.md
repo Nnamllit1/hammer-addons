@@ -121,3 +121,18 @@ document layouts or offsets.
 - [Microsoft x64 calling convention](https://learn.microsoft.com/en-us/cpp/build/x64-calling-convention)
 - [Qt QDockWidget API](https://doc.qt.io/qt-5/qdockwidget.html)
 - [Qt queued invocation](https://doc.qt.io/qt-5/qmetaobject.html#invokeMethod)
+
+
+## Editor observation bridge
+
+The Qt controller assigns a per-process session UUID and monotonically allocated
+window IDs. It samples Qt title, windowFilePath, active/visible and modified
+properties on refresh; only changed snapshots reach registered editor observers.
+Destruction uses cached metadata, never a partially destroyed QMainWindow.
+Runtime callbacks remain serialized, and busy observers retry the newest snapshot.
+This stream is coalesced metadata, not a lossless document or edit log.
+
+HA_InteractionV1 and HA_ExtensionsV1 retain their prior prefixes. Size-checked
+helpers expose the appended editor-state pointer and panel text setter. The setter
+can only change this add-on's labels/read-only views; updates flow through the
+existing status snapshot into Qt, without emitting user-input callbacks.

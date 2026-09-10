@@ -1,5 +1,8 @@
 #include "ui_extensions.h"
 #include "hammer_extensions.h"
+#include "hammer_editor.h"
+#include <QPlainTextEdit>
+#include <QUuid>
 #include <QAction>
 #include <QCheckBox>
 #include <QComboBox>
@@ -83,7 +86,42 @@ public:
     QMap<QString,Hook*> hooks;
     QMap<quint64,QString> reports;
     QJsonArray snapshot;
-    Controller(QMainWindow* w, QString t, const HA_UiHost& h) : QObject(w), window(w), tool(std::move(t)), host(h) {}
+    QByteArray session, title, document;
+    quint64 windowId=0, sequence=0;
+    uint32_t editorFlags=0;
+    QMap<quint64,quint64> delivered;
+    void publish(bool closing=false) {
+        if(!host.invoke_editor)return;
+        if(!closing && window) {
+            const auto nextTitle=window->windowTitle().toUtf8();
+            const auto nextDocument=window->windowFilePath().toUtf8();
+            const uint32_t nextFlags=(window->isVisible()?HA_EDITOR_VISIBLE:0u) |
+                (window->isActiveWindow()?HA_EDITOR_ACTIVE:0u) |
+                (window->isWindowModified()?HA_EDITOR_WINDOW_MODIFIED:0u) |
+                (!nextDocument.isEmpty()?HA_EDITOR_HAS_DOCUMENT_PATH:0u);
+            if(!sequence || title!=nextTitle || document!=nextDocument || editorFlags!=nextFlags) {
+                title=nextTitle;document=nextDocument;editorFlags=nextFlags;++sequence;
+            }
+        } else if(closing) {++sequence;editorFlags&=~(HA_EDITOR_VISIBLE|HA_EDITOR_ACTIVE);}
+        const HA_EditorStateV1 state{sizeof(HA_EditorStateV1),editorFlags,windowId,sequence,
+            session.constData(),title.constData(),document.constData()};
+        const auto t=tool.toUtf8();
+        for(const auto& entry:snapshot) {
+            const auto c=entry.toObject();const auto key=handle(c);
+            if(c["kind"].toInt()!=HA_EDITOR_OBSERVER || (closing && !delivered.contains(key)) ||
+               (!closing && delivered.value(key)==sequence))continue;
+            const auto* phase=closing?"editor.closed":(delivered.contains(key)?"editor.changed":"editor.opened");
+            const int result=host.invoke_editor(host.context,key,t.constData(),phase,&state);
+            if(result!=HA_BUSY)delivered[key]=sequence; // Retry a busy observer with the newest snapshot.
+        }
+    }
+    Controller(QMainWindow* w, QString t, const HA_UiHost& h) : QObject(w), window(w), tool(std::move(t)), host(h) {
+        static const auto processSession=QUuid::createUuid().toString(QUuid::WithoutBraces).toUtf8();
+        static quint64 nextWindow=0;
+        session=processSession;windowId=++nextWindow;
+        // Use cached metadata during destruction: the QMainWindow subobject is gone.
+        connect(w,&QObject::destroyed,this,[this]{publish(true);});
+    }
     void report(const QJsonObject& c, const QString& text) {
         const auto key = handle(c);
         if (reports.value(key) == text) return;
@@ -167,6 +205,10 @@ public:
                 auto* button = new QPushButton(label,body); form->addRow(button); widget=button;
                 connect(button,&QPushButton::clicked,this,[this,c,id] { invoke(c,"panel.click",id); }); break;
             }
+            case HA_TEXT_VIEW: {
+                auto* text=new QPlainTextEdit(initial,body);text->setReadOnly(true);
+                text->setMinimumHeight(140);form->addRow(label,text);widget=text;break;
+            }
             case HA_TEXT: {
                 auto* text = new QLineEdit(initial,body); text->setMaxLength(4096); form->addRow(label,text); widget=text;
                 connect(text,&QLineEdit::editingFinished,this,[this,c,id,text] { invoke(c,"panel.change",id,text->text()); }); break;
@@ -229,8 +271,23 @@ public:
             const auto c=entry.toObject();
             const auto kind=c["kind"].toInt(); const auto key=handle(c);
             if (kind==HA_MENU_HOOK || kind==HA_IMPORT_ROUTE) continue;
+            if(kind==HA_EDITOR_OBSERVER) {
+                report(c,host.invoke_editor ? "Observing editor metadata" : "Unavailable: editor event bridge missing");
+                continue;
+            }
             if (bindings.contains(key)) {
-                if (bindings[key].action) continue;
+                if (bindings[key].action) {
+                    if(auto* dock=bindings[key].dock.data()) for(const auto& item:c["controls"].toArray()) {
+                        const auto v=item.toObject();const auto object="HA.Control."+v["id"].toString();
+                        if(v["kind"].toInt()==HA_TEXT_VIEW) {
+                            auto* view=dock->findChild<QPlainTextEdit*>(object);
+                            if(view && view->toPlainText()!=v["value"].toString())view->setPlainText(v["value"].toString());
+                        } else if(v["kind"].toInt()==HA_LABEL) {
+                            if(auto* label=dock->findChild<QLabel*>(object))label->setText(v["value"].toString());
+                        }
+                    }
+                    continue;
+                }
                 if (bindings[key].dock) delete bindings[key].dock;
                 bindings.remove(key); // Reattach when an editor rebuilds a menu.
             }
@@ -259,6 +316,7 @@ public:
             report(c,"Attached");
         }
         snapshot=selected;
+        publish();
     }
 };
 Hook::Hook(Controller* o,QMenu* m,QAction* a) : QObject(o),owner(o),menu(m),original(a),shortcuts(a->shortcuts()) {

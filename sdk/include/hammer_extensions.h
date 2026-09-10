@@ -15,11 +15,13 @@ extern "C" {
 #define HA_MENU_HOOK 3u
 #define HA_IMPORTER 4u
 #define HA_IMPORT_ROUTE 5u /* extend an existing action with built-in/add-on importer choice */
+#define HA_EDITOR_OBSERVER 6u /* editor.opened, editor.changed, editor.closed; no menu item */
 #define HA_LABEL 1u
 #define HA_BUTTON 2u
 #define HA_TEXT 3u
 #define HA_CHECKBOX 4u
 #define HA_CHOICE 5u
+#define HA_TEXT_VIEW 6u /* Read-only multiline text, updated with HA_SetPanelText. */
 #define HA_CONTINUE 0
 #define HA_HANDLED 1
 #define HA_ERROR (-1)
@@ -31,12 +33,14 @@ extern "C" {
    Import: HANDLED means the handler completed its work, ERROR means failure.
    response is optional feedback; write a NUL-terminated UTF-8 string that fits.
    Never retain event strings. Keep callbacks short; no exceptions across ABI. */
+struct HA_EditorStateV1;
 typedef struct HA_InteractionV1 {
     uint32_t size;
     const char* tool;
     const char* phase;
     const char* control_id;
     const char* value;
+    const struct HA_EditorStateV1* editor; /* Optional appended state; use HA_GetEditorState. */
 } HA_InteractionV1;
 typedef int (HA_CALL *HA_InteractionFn)(void* user, const HA_InteractionV1* event,
                                       char* response, size_t capacity);
@@ -72,11 +76,12 @@ typedef struct HA_ExtensionsV1 {
        Missing keys return an empty string. No buffer is written if too small. */
     size_t (HA_CALL *get_setting)(void* context, const char* key, char* output, size_t capacity);
     int (HA_CALL *set_setting)(void* context, const char* key, const char* value);
+    int (HA_CALL *set_panel_text)(void* context,uint64_t panel,const char* control,const char* value);
 } HA_ExtensionsV1;
 /* Safe against an older host with only the original ABI-1 prefix. */
 static inline const HA_ExtensionsV1* HA_GetExtensions(const HA_HostV1* host) {
     if (!host || host->size < sizeof(HA_HostV1) || host->abi_version != HA_ABI_VERSION || !host->extensions ||
-        host->extensions->size < sizeof(HA_ExtensionsV1) ||
+        host->extensions->size < offsetof(HA_ExtensionsV1,set_panel_text) ||
         host->extensions->version != HA_EXTENSIONS_VERSION) return NULL;
     return host->extensions;
 }

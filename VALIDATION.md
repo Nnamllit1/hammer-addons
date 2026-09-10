@@ -222,3 +222,24 @@ the portable loader.log. No Valve files were changed.
 
 Unknown-build errors now include the observed SHA256 and explain that a CS2 update
 may require a newer Hammer Addons release, instead of suggesting restoration first.
+
+
+## Editor observation infrastructure (2026-09-10)
+
+Added HA_EDITOR_OBSERVER, size-checked HA_EditorStateV1 snapshots and owned-panel
+HA_SetPanelText updates for labels/read-only text views. ABI-1 prefixes are retained.
+The stream identifies Qt windows by session UUID/window ID and reports coalesced
+metadata changes, never scene operations or inferred document paths.
+
+Release build, editor_test, existing UI/extension tests, launcher integration and
+35 native loader scenarios passed. New tests cover old ABI prefixes, foreign-panel
+write rejection, required typed observer state, distinct windows sharing one
+session, UTF-8 reported paths, missing paths, ordered changes, no duplicate idle
+updates, live panel text and cached destruction metadata. Both new scaffold
+templates generated successfully.
+
+Live Asset Browser PID 31476 loaded editor_watch and live_status (7 add-ons total,
+0 failed). Its Editor observations panel reported editor.opened with session/window
+identity and explicitly reported that the editor supplied no document path.
+Evidence: build/editor-context.*.log and the portable loader.log. This verifies
+window observation, not map data access or real-time editing.

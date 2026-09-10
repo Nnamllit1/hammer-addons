@@ -79,6 +79,8 @@ Host capabilities (query the current host; not every entry point exposes all fla
 | `HA_CAP_SETTINGS` | Per-user, per-add-on string settings |
 | `HA_CAP_MENU_HOOKS` | Before/after and suppression of exposed menu actions |
 | `HA_CAP_IMPORTERS` | Filtered file handlers and importer-choice routes |
+| `HA_CAP_EDITOR_EVENTS` | Session/window metadata observations (not scene edits) |
+| `HA_CAP_LIVE_PANELS` | Updating owned read-only labels and text views |
 
 The portable launcher does not advertise factory observations. Its add-ons initialize
 on the runtime startup thread; UI callbacks retain their GUI-thread contract.

@@ -318,12 +318,13 @@ public:
 }
 
 extern "C" __declspec(dllexport) int __cdecl HA_StartUi(const HA_UiHost* host) noexcept {
-    if (!host || host->size < sizeof(HA_UiHost) || !host->read_status ||
+    if (!host || host->size < offsetof(HA_UiHost,invoke_editor) || !host->read_status ||
         std::strcmp(qVersion(), "5.15.2") != 0) return 0;
     auto* app = qobject_cast<QApplication*>(QCoreApplication::instance());
     if (!app) return 0;
     if (scheduled.exchange(true)) return 1;
-    const auto copy = *host;
+    HA_UiHost copy{};
+    std::memcpy(&copy,host,std::min<size_t>(host->size,sizeof(copy)));
     // Create every widget on Qt's GUI thread, even if the factory runs elsewhere.
     if (!QMetaObject::invokeMethod(app, [copy, app] { new Controller(copy, app); }, Qt::QueuedConnection)) {
         scheduled = false;

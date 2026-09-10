@@ -76,6 +76,9 @@ static int __cdecl invoke(void*, uint64_t handle, const char* tool, const char* 
     try { return runtime->invoke(handle,tool,phase,control,value,response,capacity); }
     catch (...) { return HA_ERROR; }
 }
+static int __cdecl invoke_editor(void*,uint64_t handle,const char* tool,const char* phase,const HA_EditorStateV1* state) {
+    try {return runtime->invoke(handle,tool,phase,"","",nullptr,0,state);}catch(...){return HA_ERROR;}
+}
 static void __cdecl report_binding(void*, uint64_t handle, const char* tool, const char* message) {
     try { runtime->report_binding(handle,tool,message); } catch (...) {}
 }
@@ -86,7 +89,7 @@ static void start_ui() {
         try {
             HMODULE module = nullptr;
             HA_UiStart start = nullptr;
-            static const HA_UiHost host{sizeof(HA_UiHost), nullptr, read_status, invoke, report_binding};
+            static const HA_UiHost host{sizeof(HA_UiHost), nullptr, read_status, invoke, report_binding, invoke_editor};
             for (unsigned attempt = 0; attempt < 120; ++attempt) {
                 if (!module && GetModuleHandleW(L"Qt5Widgets.dll")) {
                     const auto file = loader_directory() / "hammer_addons_ui.dll";

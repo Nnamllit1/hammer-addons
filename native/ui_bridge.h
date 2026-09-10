@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+struct HA_EditorStateV1;
 // Private loader/UI boundary. No Qt or C++ objects cross between these DLLs.
 struct HA_UiHost {
     uint32_t size;
@@ -10,5 +11,6 @@ struct HA_UiHost {
     size_t (__cdecl *read_status)(void* context, char* destination, size_t capacity);
     int (__cdecl *invoke)(void*, uint64_t, const char*, const char*, const char*, const char*, char*, size_t);
     void (__cdecl *report_binding)(void*, uint64_t, const char*, const char*);
+    int (__cdecl *invoke_editor)(void*,uint64_t,const char*,const char*,const HA_EditorStateV1*);
 };
 typedef int (__cdecl *HA_UiStart)(const HA_UiHost* host);

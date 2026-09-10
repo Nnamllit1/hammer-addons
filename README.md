@@ -5,7 +5,7 @@ and a shared add-on manager for the Workshop project picker and editors. A porta
 
 The framework provides native DLL loading, lifecycle callbacks, logging,
 add-on panels and commands, persistent settings,
-menu-action hooks, custom file handlers, and a manager with tool filters. Use it to install compatible add-ons or build your
+menu-action hooks, custom file handlers, editor metadata observations, and a manager with tool filters. Use it to install compatible add-ons or build your
 own against the included SDK.
 
 This is an unofficial project, independent of Valve.
@@ -97,8 +97,14 @@ launcher does not advertise `HA_CAP_FACTORY_EVENTS`; add-ons requiring that
 capability need to be adapted.
 
 Use `--template commands`, `--template panel_settings`, `--template menu_hooks`,
-`--template note_import` or `--template picker_notes` to start from a feature example. Each SDK feature has
+`--template note_import`, `--template picker_notes`, `--template editor_watch` or
+`--template live_status` to start from a feature example. Each SDK feature has
 [a corresponding example add-on](docs/EXTENSIONS.md#examples).
+
+Add-ons can observe session/window identity, reported document paths and window
+metadata changes, and update read-only panel text. See [editor observations and
+live panels](docs/EDITOR_CONTEXT.md), including their limits. These observations
+do not expose map objects, unsaved scene operations or save events.
 
 ## Current capabilities and limitations
 

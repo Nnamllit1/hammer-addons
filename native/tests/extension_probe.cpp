@@ -1,4 +1,4 @@
-#include "hammer_extensions.h"
+#include "hammer_editor.h"
 #include <atomic>
 #include <thread>
 #include <stdexcept>
@@ -31,4 +31,8 @@ extern "C" HA_EXPORT int HA_CALL ProbeLateRegistration() {
 extern "C" HA_EXPORT const HA_AddonV1* HA_CALL HA_Query(uint32_t abi) {
     static const HA_AddonV1 addon{sizeof(HA_AddonV1),HA_ABI_VERSION,"extension_probe",HA_CAP_UI,load,nullptr,nullptr};
     return abi==HA_ABI_VERSION ? &addon : nullptr;
+}
+
+extern "C" HA_EXPORT int HA_CALL ProbePanelText(uint64_t panel,const char* control,const char* value) {
+    return HA_SetPanelText(host,panel,control,value);
 }
