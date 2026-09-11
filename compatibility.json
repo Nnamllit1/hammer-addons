@@ -43,5 +43,13 @@
         "InstallSchemaBindings"
       ]
     }
+  ],
+  "logging_profiles": [
+    {
+      "name": "Experimental CS2 tier0 build 25218825; standalone tests only, production attachment disabled",
+      "sha256": "add398561b7831fc3b59356a3c3e48b87ba8d8db376b156c1b68c4d710136a8a",
+      "module": "tier0",
+      "interface": "ILoggingListener: five methods; LoggingContext prefix channel/flags/severity/color/metadata"
+    }
   ]
 }

@@ -148,12 +148,14 @@ Summary Runtime::start() {
             if (!query) throw std::runtime_error("HA_Query export missing");
             current->api = query(HA_ABI_VERSION);
             const auto* api = current->api;
-            const uint64_t capabilities = HA_CAP_LOGGING | (factory_events_ ? HA_CAP_FACTORY_EVENTS : 0) | HA_CAP_UI | HA_CAP_SETTINGS | HA_CAP_MENU_HOOKS | HA_CAP_IMPORTERS | HA_CAP_EDITOR_EVENTS | HA_CAP_LIVE_PANELS;
+            const uint64_t capabilities = HA_CAP_LOGGING | (factory_events_ ? HA_CAP_FACTORY_EVENTS : 0) | HA_CAP_UI | HA_CAP_SETTINGS | HA_CAP_MENU_HOOKS | HA_CAP_IMPORTERS | HA_CAP_EDITOR_EVENTS | HA_CAP_LIVE_PANELS | HA_CAP_JOBS | HA_CAP_EDITOR_QUEUE | HA_CAP_TOOL_LOGS | HA_CAP_BUILD_OUTPUT;
             if (!api || api->size < sizeof(HA_AddonV1) || api->abi_version != HA_ABI_VERSION ||
                 !api->id || current->id != api->id || !api->on_load || (api->required_capabilities & ~capabilities))
                 throw std::runtime_error("add-on ABI, ID or required capabilities do not match");
+            static const HA_LogsV1 log_api{sizeof(HA_LogsV1),1,logs_available,subscribe_logs,unsubscribe_logs};
+            static const HA_JobsV1 job_api{sizeof(HA_JobsV1),1,submit_job,cancel_job,post_editor};
             static const HA_ExtensionsV1 extension_api{sizeof(HA_ExtensionsV1), HA_EXTENSIONS_VERSION,
-                register_contribution, get_setting, set_setting, set_panel_text};
+                register_contribution, get_setting, set_setting, set_panel_text, &job_api, &log_api};
             current->host = {sizeof(HA_HostV1), HA_ABI_VERSION, capabilities, current, addon_log, current->directory.c_str(), &extension_api};
             current->registering = true;
             int loaded = 0;
@@ -194,6 +196,7 @@ void Runtime::event(const char* name, const char* value) {
 }
 void Runtime::shutdown() {
     std::lock_guard guard(callbacks_);
+    jobs_.stop_all();
     for (auto it = addons_.rbegin(); it != addons_.rend(); ++it) if ((*it)->active) {
         (*it)->active = false;
         statuses_[(*it)->status_index].state = "Stopped";
@@ -273,7 +276,7 @@ int HA_CALL Runtime::set_panel_text(void* context,uint64_t panel,const char* con
     return 0;
 }
 int Runtime::invoke(uint64_t handle, const char* tool, const char* phase, const char* control,
-                    const char* value, char* response, size_t capacity, const HA_EditorStateV1* editor) {
+                    const char* value, char* response, size_t capacity, const HA_EditorStateV1* editor, const HA_BuildOutputV1* build) {
     if (response && capacity) response[0] = 0;
     std::unique_lock guard(callbacks_, std::try_to_lock);
     if (!guard.owns_lock() || dispatching_) return HA_BUSY;
@@ -289,6 +292,12 @@ int Runtime::invoke(uint64_t handle, const char* tool, const char* phase, const 
             if(c.kind==HA_EDITOR_OBSERVER && (!editor || editor->size<sizeof(HA_EditorStateV1) ||
                 (event_phase!="editor.opened" && event_phase!="editor.changed" && event_phase!="editor.closed"))) return HA_ERROR;
             if(c.kind!=HA_EDITOR_OBSERVER && editor) return HA_ERROR;
+            if(c.kind==HA_BUILD_OBSERVER && (!build || build->size<sizeof(HA_BuildOutputV1) ||
+                !build->window_id || !build->stream_id || !build->sequence || !build->title || !build->text ||
+                (build->flags & ~HA_BUILD_TRUNCATED) || strnlen_s(build->title,4097)>4096 ||
+                strnlen_s(build->text,131073)>131072 ||
+                (event_phase!="build.output" && event_phase!="build.closed"))) return HA_ERROR;
+            if(c.kind!=HA_BUILD_OBSERVER && build) return HA_ERROR;
             if (c.kind == HA_PANEL) {
                 const auto found = std::find_if(c.controls.begin(),c.controls.end(),[&](const Control& v) { return v.id == control; });
                 if (found == c.controls.end() || (found->kind == HA_LABEL || found->kind == HA_TEXT_VIEW) ||
@@ -303,7 +312,7 @@ int Runtime::invoke(uint64_t handle, const char* tool, const char* phase, const 
             }
             dispatching_ = true;
             struct Reset { bool& value; ~Reset() { value = false; } } reset{dispatching_};
-            const HA_InteractionV1 event{sizeof(HA_InteractionV1),tool,phase,control,value,editor};
+            const HA_InteractionV1 event{sizeof(HA_InteractionV1),tool,phase,control,value,editor,build};
             try {
                 const int result = c.callback(c.user,&event,response,capacity);
                 if (response && capacity) response[capacity-1] = 0;
@@ -324,4 +333,95 @@ void Runtime::report_binding(uint64_t handle, const char* tool, const char* mess
     log("UI binding " + std::to_string(handle) + " [" + (tool ? tool : "") + "]: " + (message ? message : ""));
 }
 
+}
+
+namespace ha {
+uint64_t HA_CALL Runtime::submit_job(void* context,const HA_JobV1* request) noexcept {
+    try {
+        auto* a=static_cast<Addon*>(context);if(!a || !request)return 0;
+        std::unique_lock lock(a->owner->callbacks_,std::try_to_lock);
+        if(!lock.owns_lock() || !a->active)return 0;
+        return a->owner->jobs_.submit(a->id,*request);
+    }catch(...){return 0;}
+}
+int HA_CALL Runtime::cancel_job(void* context,uint64_t id) noexcept {
+    try {
+        auto* a=static_cast<Addon*>(context);if(!a)return 0;
+        std::unique_lock lock(a->owner->callbacks_,std::try_to_lock);
+        return lock.owns_lock() && a->active && a->owner->jobs_.cancel(a->id,id);
+    }catch(...){return 0;}
+}
+int HA_CALL Runtime::post_editor(void* context,HA_EditorCallbackFn callback,const char* text,uint64_t window) noexcept {
+    try {
+        auto* a=static_cast<Addon*>(context);if(!a)return 0;
+        std::unique_lock lock(a->owner->callbacks_,std::try_to_lock);
+        return lock.owns_lock() && a->active && a->owner->jobs_.post(a->id,callback,text,window);
+    }catch(...){return 0;}
+}
+void Runtime::editor_window(uint64_t id,bool open) noexcept {
+    try {jobs_.window(id,open);}catch(...){}
+}
+void Runtime::pump_jobs() noexcept {
+    try {
+        std::unique_lock lock(callbacks_,std::try_to_lock);
+        if(!lock.owns_lock() || dispatching_)return;
+        if(!editor_thread_)editor_thread_=GetCurrentThreadId();
+        if(editor_thread_!=GetCurrentThreadId())return;
+        dispatching_=true;
+        struct Reset{bool& value;~Reset(){value=false;}} reset{dispatching_};
+        for(const auto& a:addons_)if(!a->active)jobs_.stop(a->id);
+        for(const auto& line:tool_logs_.take()) {
+            for(const auto& a:addons_)if(a->active) {
+                const auto subscriptions=a->logs;
+                for(const auto& subscription:subscriptions) {
+                    if(!a->active || line.sequence<=subscription.after || line.severity<subscription.minimum ||
+                       std::none_of(a->logs.begin(),a->logs.end(),[&](const auto& s){return s.id==subscription.id;}))continue;
+                    const HA_LogEventV1 event{sizeof(event),line.severity,line.channel,line.truncated,line.sequence,line.dropped,line.text.data()};
+                    try {subscription.callback(&event);}
+                    catch(...) {
+                        a->active=false;jobs_.stop(a->id);
+                        auto& status=statuses_[a->status_index];status.state="Failed";status.detail="Tool log callback threw a C++ exception";
+                    }
+                }
+            }
+        }
+
+        for(const auto& delivery:jobs_.take()) {
+            if(!jobs_.window_open(delivery.window))continue;
+            for(const auto& a:addons_)if(a->active && a->id==delivery.owner) {
+                const HA_JobEventV1 event{sizeof(event),delivery.state,delivery.progress,delivery.id,delivery.text.c_str()};
+                try {delivery.callback(&event);}
+                catch(...) {
+                    a->active=false;jobs_.stop(a->id);
+                    auto& status=statuses_[a->status_index];status.state="Failed";
+                    status.detail="Queued editor callback threw a C++ exception";log(status.detail);
+                }
+                break;
+            }
+        }
+    }catch(...){log("Job dispatch failed");}
+}
+}
+
+namespace ha {
+bool Runtime::attach_tool_logs(HMODULE module) {std::lock_guard lock(callbacks_);return tool_logs_.attach(module);}
+int HA_CALL Runtime::logs_available(void* context) noexcept {
+    try {auto* a=static_cast<Addon*>(context);if(!a)return 0;
+        std::unique_lock lock(a->owner->callbacks_,std::try_to_lock);
+        return lock.owns_lock() && a->owner->tool_logs_.available();
+    }catch(...){return 0;}
+}
+uint64_t HA_CALL Runtime::subscribe_logs(void* context,HA_LogCallbackFn callback,uint32_t minimum) noexcept {
+    try {auto* a=static_cast<Addon*>(context);if(!a || !callback || minimum>HA_LOG_ERROR)return 0;
+        std::unique_lock lock(a->owner->callbacks_,std::try_to_lock);
+        if(!lock.owns_lock() || (!a->active && !a->registering) || a->logs.size()>=8 || !a->owner->tool_logs_.available())return 0;
+        const auto id=a->owner->next_subscription_++;a->logs.push_back({id,callback,minimum,a->owner->tool_logs_.latest()});return id;
+    }catch(...){return 0;}
+}
+int HA_CALL Runtime::unsubscribe_logs(void* context,uint64_t id) noexcept {
+    try {auto* a=static_cast<Addon*>(context);if(!a)return 0;
+        std::unique_lock lock(a->owner->callbacks_,std::try_to_lock);if(!lock.owns_lock())return 0;
+        return std::erase_if(a->logs,[&](const auto& s){return s.id==id;})!=0;
+    }catch(...){return 0;}
+}
 }

@@ -1,6 +1,7 @@
 #include "ui_extensions.h"
 #include "hammer_extensions.h"
 #include "hammer_editor.h"
+#include "ui_build_output.h"
 #include <QPlainTextEdit>
 #include <QUuid>
 #include <QAction>
@@ -82,6 +83,7 @@ public:
     QPointer<QMainWindow> window;
     QString tool;
     HA_UiHost host;
+    QObject* buildOutput=nullptr;
     QMap<quint64,Binding> bindings;
     QMap<QString,Hook*> hooks;
     QMap<quint64,QString> reports;
@@ -119,8 +121,13 @@ public:
         static const auto processSession=QUuid::createUuid().toString(QUuid::WithoutBraces).toUtf8();
         static quint64 nextWindow=0;
         session=processSession;windowId=++nextWindow;
+        if(tool=="hammer")buildOutput=attach_build_output(w,host,windowId);
+        if(host.editor_window)host.editor_window(host.context,windowId,1);
         // Use cached metadata during destruction: the QMainWindow subobject is gone.
-        connect(w,&QObject::destroyed,this,[this]{publish(true);});
+        connect(w,&QObject::destroyed,this,[this]{
+            if(host.editor_window)host.editor_window(host.context,windowId,0);
+            publish(true);
+        });
     }
     void report(const QJsonObject& c, const QString& text) {
         const auto key = handle(c);
@@ -271,6 +278,10 @@ public:
             const auto c=entry.toObject();
             const auto kind=c["kind"].toInt(); const auto key=handle(c);
             if (kind==HA_MENU_HOOK || kind==HA_IMPORT_ROUTE) continue;
+            if(kind==HA_BUILD_OBSERVER) {
+                report(c,host.invoke_build ? "Observing Hammer build dialogs; waiting for displayed output" : "Unavailable: build output bridge missing");
+                continue;
+            }
             if(kind==HA_EDITOR_OBSERVER) {
                 report(c,host.invoke_editor ? "Observing editor metadata" : "Unavailable: editor event bridge missing");
                 continue;
@@ -316,6 +327,7 @@ public:
             report(c,"Attached");
         }
         snapshot=selected;
+        refresh_build_output(buildOutput,selected);
         publish();
     }
 };

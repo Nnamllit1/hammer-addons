@@ -34,6 +34,8 @@ if (Test-Path -LiteralPath $legacyProxy) { Remove-Item -LiteralPath $legacyProxy
 if ($Test) {
     & "$PSScriptRoot\build\native\$Configuration\runtime_test.exe" $PSScriptRoot
     if ($LASTEXITCODE) { exit $LASTEXITCODE }
+    & "$PSScriptRoot\build\native\$Configuration\tool_logs_test.exe"
+    if ($LASTEXITCODE) { exit $LASTEXITCODE }
     $savedPath = $env:PATH
     $savedPlatform = $env:QT_QPA_PLATFORM
     $savedPlugins = $env:QT_PLUGIN_PATH
@@ -42,6 +44,10 @@ if ($Test) {
         $env:QT_QPA_PLATFORM = 'offscreen'
         $env:QT_PLUGIN_PATH = "$qt\plugins"
         & "$PSScriptRoot\build\native\$Configuration\ui_test.exe"
+        if ($LASTEXITCODE) { exit $LASTEXITCODE }
+        & "$PSScriptRoot\build\native\$Configuration\build_output_test.exe" $PSScriptRoot
+        if ($LASTEXITCODE) { exit $LASTEXITCODE }
+        & "$PSScriptRoot\build\native\$Configuration\jobs_test.exe" $PSScriptRoot
         if ($LASTEXITCODE) { exit $LASTEXITCODE }
         & "$PSScriptRoot\build\native\$Configuration\editor_test.exe" $PSScriptRoot
         if ($LASTEXITCODE) { exit $LASTEXITCODE }

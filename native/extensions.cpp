@@ -28,7 +28,7 @@ static std::string string(const char* value, size_t limit = 4096) {
 }
 static bool id(const std::string& value) { return std::regex_match(value, std::regex("[a-z][a-z0-9_]{0,63}")); }
 Contribution copy_contribution(const std::string& owner, uint64_t handle, const HA_ContributionV1& in) {
-    if (in.size < sizeof(in) || in.kind < HA_COMMAND || in.kind > HA_EDITOR_OBSERVER || !in.callback)
+    if (in.size < sizeof(in) || in.kind < HA_COMMAND || in.kind > HA_BUILD_OBSERVER || !in.callback)
         throw std::runtime_error("invalid extension descriptor");
     Contribution c{handle, in.kind, owner, string(in.id, 64), string(in.tool, 32),
         string(in.label, 128), string(in.target, 512), string(in.options), {}, in.callback, in.user};
@@ -36,6 +36,8 @@ Contribution copy_contribution(const std::string& owner, uint64_t handle, const 
     if (!id(c.id) || !tools.contains(c.tool) || c.label.empty() ||
         c.target.find("//") != std::string::npos || c.target.starts_with('/') || c.target.ends_with('/'))
         throw std::runtime_error("invalid extension ID, tool, label or target");
+    if(c.kind==HA_BUILD_OBSERVER && (c.tool!="hammer" || !c.target.empty() || !c.options.empty()))
+        throw std::runtime_error("build observers require Hammer and no target or options");
     if(c.kind==HA_EDITOR_OBSERVER && (!c.target.empty() || !c.options.empty()))
         throw std::runtime_error("editor observers do not have a menu target or options");
     if ((c.kind == HA_MENU_HOOK || c.kind == HA_IMPORT_ROUTE) && (c.target.empty() || c.tool == "all"))

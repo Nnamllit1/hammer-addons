@@ -18,6 +18,12 @@ addons/
   hello/
     addon.ini
     hello.dll
+  compile_report/
+    addon.ini
+    compile_report.dll
+  tool_console/
+    addon.ini
+    tool_console.dll
 ```
 
 Every launch opens Valve's `csgocfg.exe` project picker, the same program used by

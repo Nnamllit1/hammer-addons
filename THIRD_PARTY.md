@@ -17,3 +17,9 @@ Our source, CMake configuration and the pinned archive URL/checksum in
 scripts/fetch-qt.py are available to rebuild the UI DLL. The SDK files in the
 cache are unmodified. native/qt_compat.h selects Qt's raw-pointer iterator
 fallback for the MSVC 2026 compiler, which removed the older stdext adapters.
+
+The private native logging adapter follows the interface declarations documented
+in the [CS2 SDK logging header](https://github.com/alliedmodders/hl2sdk/blob/cs2/public/tier0/logging.h)
+maintained by AlliedModders. It uses the already-installed Valve tier0.dll; no
+Valve runtime binary or full SDK header is redistributed. Its supported binary
+hashes are recorded separately in compatibility.json's logging_profiles.

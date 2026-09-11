@@ -27,10 +27,11 @@ int wmain(int argc,wchar_t** argv) {
         try{process.start_runtime(runtime);}catch(const std::exception& e){std::cout<<e.what()<<'\n';failed=true;}
         if(reject) {if(!failed)throw std::runtime_error("Normal session was accepted");return 0;}
         if(failed)throw std::runtime_error("Tools session failed");
-        process.release();
+        // Keep ownership until assertions finish so a failing fixture is cleaned up.
         if(WaitForSingleObject(process.handle(),15000)!=WAIT_OBJECT_0)throw std::runtime_error("Fixture did not see the add-on UI");
         DWORD result=0;GetExitCodeProcess(process.handle(),&result);
         if(result)throw std::runtime_error("Fixture UI check failed");
+        process.release();
         std::cout<<"Own-process runtime loading and add-on UI passed.\n";
         return 0;
     }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}

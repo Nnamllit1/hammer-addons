@@ -18,6 +18,11 @@ static size_t __cdecl read(void*,char* output,size_t capacity) {
 static int __cdecl invoke(void*,uint64_t handle,const char* tool,const char* phase,const char* control,const char* value,char* response,size_t capacity) {
     try{return runtime->invoke(handle,tool,phase,control,value,response,capacity);}catch(...){return HA_ERROR;}
 }
+static int __cdecl invoke_build(void*,uint64_t handle,const char* phase,const HA_BuildOutputV1* state) {
+    try{return runtime->invoke(handle,"hammer",phase,"","",nullptr,0,nullptr,state);}catch(...){return HA_ERROR;}
+}
+static void __cdecl pump_jobs(void*) {runtime->pump_jobs();}
+static void __cdecl editor_window(void*,uint64_t id,int open) {runtime->editor_window(id,open!=0);}
 static int __cdecl invoke_editor(void*,uint64_t handle,const char* tool,const char* phase,const HA_EditorStateV1* state) {
     try {return runtime->invoke(handle,tool,phase,"","",nullptr,0,state);}catch(...){return HA_ERROR;}
 }
@@ -61,8 +66,11 @@ extern "C" __declspec(dllexport) DWORD WINAPI HA_StartTools(void*) noexcept {
                 if(!module) {runtime->log("Cannot load UI DLL: "+std::to_string(GetLastError()));return 5;}
                 auto start=reinterpret_cast<HA_UiStart>(GetProcAddress(module,"HA_StartUi"));
                 if(!start) return 5;
+                // Standalone listener tests did not establish live editor stability.
+                // Build output uses the Qt observer independently of native logging.
+                runtime->log("Native tool logging disabled pending live stability verification");
                 try{runtime->start();}catch(const std::exception& e){runtime->initialization_error(e.what());}
-                static const HA_UiHost host{sizeof(HA_UiHost),nullptr,read,invoke,report,invoke_editor};
+                static const HA_UiHost host{sizeof(HA_UiHost),nullptr,read,invoke,report,invoke_editor,pump_jobs,editor_window,invoke_build};
                 for(unsigned ready=attempt;ready<120;++ready) {
                     if(start(&host)) {runtime->log("Tools add-on runtime started; UI initialization queued");return 1;}
                     Sleep(500);

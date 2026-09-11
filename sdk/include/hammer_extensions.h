@@ -16,6 +16,7 @@ extern "C" {
 #define HA_IMPORTER 4u
 #define HA_IMPORT_ROUTE 5u /* extend an existing action with built-in/add-on importer choice */
 #define HA_EDITOR_OBSERVER 6u /* editor.opened, editor.changed, editor.closed; no menu item */
+#define HA_BUILD_OBSERVER 7u /* build.output, build.closed; Hammer only, no menu item */
 #define HA_LABEL 1u
 #define HA_BUTTON 2u
 #define HA_TEXT 3u
@@ -34,6 +35,7 @@ extern "C" {
    response is optional feedback; write a NUL-terminated UTF-8 string that fits.
    Never retain event strings. Keep callbacks short; no exceptions across ABI. */
 struct HA_EditorStateV1;
+struct HA_BuildOutputV1;
 typedef struct HA_InteractionV1 {
     uint32_t size;
     const char* tool;
@@ -41,6 +43,7 @@ typedef struct HA_InteractionV1 {
     const char* control_id;
     const char* value;
     const struct HA_EditorStateV1* editor; /* Optional appended state; use HA_GetEditorState. */
+    const struct HA_BuildOutputV1* build; /* Optional; use HA_GetBuildOutput. */
 } HA_InteractionV1;
 typedef int (HA_CALL *HA_InteractionFn)(void* user, const HA_InteractionV1* event,
                                       char* response, size_t capacity);
@@ -67,6 +70,8 @@ typedef struct HA_ContributionV1 {
     HA_InteractionFn callback;
     void* user;
 } HA_ContributionV1;
+struct HA_JobsV1;
+struct HA_LogsV1;
 typedef struct HA_ExtensionsV1 {
     uint32_t size, version;
     /* Register during on_load only. Definitions/strings are copied.
@@ -77,6 +82,8 @@ typedef struct HA_ExtensionsV1 {
     size_t (HA_CALL *get_setting)(void* context, const char* key, char* output, size_t capacity);
     int (HA_CALL *set_setting)(void* context, const char* key, const char* value);
     int (HA_CALL *set_panel_text)(void* context,uint64_t panel,const char* control,const char* value);
+    const struct HA_JobsV1* jobs;
+    const struct HA_LogsV1* logs;
 } HA_ExtensionsV1;
 /* Safe against an older host with only the original ABI-1 prefix. */
 static inline const HA_ExtensionsV1* HA_GetExtensions(const HA_HostV1* host) {

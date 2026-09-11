@@ -270,3 +270,72 @@ Editor/extension tests now load example DLLs from their own build configuration,
 and their CMake targets build the required examples automatically. The portable
 Release ZIP and locally installed editor_watch/live_status examples were rebuilt.
 This validation uses fixtures; no live CS2 session was started for these fixes.
+
+
+## Jobs, editor queue and live native logging (2026-09-10)
+
+Added ABI-1 extension tables for copied-input background jobs (capability 256),
+queued editor callbacks (512) and tool-log subscriptions (1024). Existing table
+prefixes and capability values are preserved. Runtime tests check bit uniqueness.
+
+The Release build and full regression pipeline passed. Subsequent package/template
+checks also passed with compile_report and tool_console included: real launcher
+fixtures load the bundled add-ons by ID, and both new scaffold templates build
+against the installed SDK. The loader suite still has 35 scenarios. Debug runtime
+and jobs/UI tests passed as well. Launcher test failure cleanup retains ownership
+of the fixture until its assertions finish.
+
+jobs_test covers per-owner/global capacity, post backpressure, copied payloads,
+wrong-thread drain rejection, deferred nested posts, cooperative cancellation,
+worker exceptions, window destruction, stale-window rejection, callback failure,
+shutdown suppression and workers surviving queue destruction with owned state.
+The real compile_report DLL scans fixture logs into a read-only panel, preserves
+line references and rejects binary/UTF-16 input. The unavailable native-log
+provider is visibly explained by the real tool_console DLL.
+
+The installed original tier0.dll has SHA256
+add398561b7831fc3b59356a3c3e48b87ba8d8db376b156c1b68c4d710136a8a.
+Its exported LoggingSystem_RegisterLoggingListener and LoggingSystem_LogDirect
+were exercised in a separate test process. The listener's channel/severity/text
+ABI and worker-thread delivery passed. A 300-message burst verified the 256-message
+buffer limit, monotonically increasing captured sequence and reported drops.
+Local evidence: build/tool-logs-validation.log.
+
+jobs_test with that original tier0 DLL also passed in Release and Debug: an engine
+warning emitted on a worker thread reached the real tool_console panel through
+the UI bridge; informational filtering and pause/unsubscribe worked. This is a
+real Valve logging-library test in a Qt fixture, not a live Hammer compilation.
+Complete compiler output, separate compiler-process capture, stdin and automatic
+root-cause diagnosis remain outside the current logging adapter's guarantees.
+
+The portable ZIP includes hello, compile_report and tool_console. No Valve files
+were replaced or edited. The native listener and bounded buffer are intentionally
+retained until process exit because nested logging states can retain listeners.
+
+
+## Automatic Hammer build-output capture (2026-09-11)
+
+Release integration tests passed for the new read-only build-output observer:
+actual Qt metaobject discovery, exclusion of unrelated/ambiguous controls,
+replacement snapshots, clears, UTF-8, bounded tails, busy retries, destruction
+and reopened dialog identity. The test routes output through the runtime to the
+real compile_report DLL without selecting any log file. Runtime, jobs, editor,
+extension and UI suites also passed, as did the portable launcher fixtures and
+all 35 native loader scenarios.
+
+Live verification used the launcher-owned `-tools -insecure -addon h2mcp_demo`
+session and the existing disposable `de_h2mcp_demo.vmap`. Hammer's fast compile
+finished at 04:18 with `17 compiled, 0 failed, 1 skipped`. No source map was edited;
+Hammer generated the test project's compiled VPK through its normal build flow.
+The build dialog's `CQAutoScrollingTextEdit` was identified through accessibility.
+Reading the real Build log report dock subsequently confirmed **91 displayed
+lines and 4 diagnostic candidates**, including the same missing-resource messages
+and the compiler summary. The report explicitly treats `0 failed` as a potentially
+harmless keyword match. Capture required no log-file selection or external log.
+
+The experimental native logger remains disabled in production. Earlier tests
+reported ntdll heap corruption (0xc0000374); a later picker exit also recorded it
+with both native logging and the temporary probe disabled. The cause remains
+unresolved; this compiler-capture test does not establish general picker stability.
+The live Hammer process remained responsive through compilation and report reading.
+The temporary compiler_probe add-on was removed from the portable directory.

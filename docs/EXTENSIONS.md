@@ -14,6 +14,8 @@ Every public SDK feature has an example:
 | --- | --- |
 | [editor_watch](../addons/editor_watch/editor_watch.cpp) | Editor session/window metadata, lifecycle observations, read-only event history |
 | [live_status](../addons/live_status/live_status.cpp) | Programmatic label updates without overwriting editable inputs |
+| [compile_report](../addons/compile_report/compile_report.cpp) | Automatic Hammer build-output observation; optional saved-log background jobs, cancellation and queued callbacks |
+| [tool_console](../addons/tool_console/tool_console.cpp) | Live native tool output, severity filters and subscriptions |
 | [hello](../addons/hello/hello.cpp) | Loading, logging, shutdown; factory observations on the legacy proxy |
 | [commands](../addons/commands/commands.cpp) | Menu command, shortcut, tool scope, callback feedback |
 | [picker_notes](../addons/picker_notes/picker_notes.cpp) | Project-picker opt-in, panel and persistent reminder |
@@ -23,7 +25,7 @@ Every public SDK feature has an example:
 
 Builds put optional example DLLs in `dist/examples/addons/`. Copy selected example
 folders into the portable package's `addons/` directory and restart Workshop
-Tools. Only `hello` is installed by default. Example source is also packaged.
+Tools. `hello`, `compile_report` and `tool_console` are installed by default. Example source is also packaged.
 
 Generate an independently buildable project:
 
@@ -35,7 +37,7 @@ cmake --install ../my_panel/build --config Release --prefix ../my_panel/package
 ```
 
 Templates are `hello`, `commands`, `panel_settings`, `menu_hooks` and
-`note_import`, `picker_notes`, `editor_watch` and `live_status`. `--tools` changes manifest tool tags. Change each
+`note_import`, `picker_notes`, `editor_watch`, `live_status`, `compile_report` and `tool_console`. `--tools` changes manifest tool tags. Change each
 contribution's `tool` and `target` in source to change its UI placement.
 
 ## Registration and ownership
@@ -130,8 +132,8 @@ Extensions tab describes the current window.
 ## Callbacks and settings
 
 UI callbacks run on Qt's GUI thread, serialized with other add-on callbacks.
-Keep them short. A worker may perform independent conversion work, but this
-version has no job/progress or GUI-thread completion API. Do not block the UI
+Keep them short. Use the [jobs and queued callback API](JOBS.md) for background work, progress,
+cancellation and delivery back to the editor thread. Do not block the UI
 waiting for a worker that needs the UI thread.
 
 Event strings and the response buffer are borrowed for the call. Return
@@ -175,3 +177,8 @@ restart the launcher. The picker runtime needs no additional DLL in the package.
 
 Editor metadata observers use `HA_EDITOR_OBSERVER`. See the [editor observation
 contract and examples](EDITOR_CONTEXT.md) for delivery, identity and limitations.
+
+[Build output](BUILD_OUTPUT.md) exposes Hammer build-dialog snapshots through
+`HA_BUILD_OBSERVER` and `HA_CAP_BUILD_OUTPUT`. The `compile_report` example uses
+this automatically. [Native tool logging](TOOL_LOGS.md) is a separate subscription
+API; its production provider is currently disabled pending live stability checks.

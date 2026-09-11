@@ -136,3 +136,16 @@ HA_InteractionV1 and HA_ExtensionsV1 retain their prior prefixes. Size-checked
 helpers expose the appended editor-state pointer and panel text setter. The setter
 can only change this add-on's labels/read-only views; updates flow through the
 existing status snapshot into Qt, without emitting user-input callbacks.
+
+
+## Jobs and tool logging
+
+The runtime owns bounded job and editor-message queues. Workers retain only their
+own copied state and use a job context; they never retain runtime or Qt pointers.
+The private UI bridge pumps delivery on a 50 ms GUI timer and registers window
+lifetimes for scoped cancellation. The experimental native logger
+only fills a bounded buffer; production attachment is disabled after live-session
+heap-corruption failures. Automatic compiler capture instead observes the public Qt
+document of Hammer's build-output control on the GUI thread. Both paths dispatch add-on
+callbacks under the existing serialization/reentrancy guard. See [jobs](JOBS.md)
+and [tool logging](TOOL_LOGS.md) for lifetime, drop, compatibility and shutdown limits.

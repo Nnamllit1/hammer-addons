@@ -311,6 +311,11 @@ public:
         auto* timer = new QTimer(this);
         connect(timer, &QTimer::timeout, this, [this] { discover(); });
         timer->start(750);
+        if(host_.pump_jobs) {
+            auto* jobs=new QTimer(this);
+            connect(jobs,&QTimer::timeout,this,[this]{host_.pump_jobs(host_.context);});
+            jobs->start(50);
+        }
         discover();
     }
 };
