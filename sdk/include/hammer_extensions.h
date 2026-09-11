@@ -75,6 +75,7 @@ typedef struct HA_ContributionV1 {
 struct HA_JobsV1;
 struct HA_LogsV1;
 struct HA_ProjectV1;
+struct HA_SteamV1;
 typedef struct HA_ExtensionsV1 {
     uint32_t size, version;
     /* Register during on_load only. Definitions/strings are copied.
@@ -88,6 +89,7 @@ typedef struct HA_ExtensionsV1 {
     const struct HA_JobsV1* jobs;
     const struct HA_LogsV1* logs;
     const struct HA_ProjectV1* project;
+    const struct HA_SteamV1* steam;
 } HA_ExtensionsV1;
 /* Safe against an older host with only the original ABI-1 prefix. */
 static inline const HA_ExtensionsV1* HA_GetExtensions(const HA_HostV1* host) {

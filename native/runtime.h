@@ -6,6 +6,7 @@
 #include "jobs.h"
 #include "tool_logs.h"
 #include "project.h"
+#include "steam.h"
 #include <windows.h>
 #include <filesystem>
 #include <memory>
@@ -18,7 +19,7 @@ namespace ha {
 struct Summary { unsigned loaded = 0, rejected = 0, disabled = 0; };
 class Runtime {
 public:
-    explicit Runtime(std::filesystem::path root, std::filesystem::path settings_root = {}, bool factory_events = true, std::string process_scope = {});
+    explicit Runtime(std::filesystem::path root, std::filesystem::path settings_root = {}, bool factory_events = true, std::string process_scope = {}, SteamExports steam_exports = {});
     Summary start();
     bool initialize_project(const std::filesystem::path&,const std::vector<std::wstring>&);
     void event(const char* name, const char* value);
@@ -40,6 +41,8 @@ private:
     Jobs jobs_;
     ToolLogs tool_logs_;
     Project project_;
+    Steam steam_;
+    ULONGLONG next_steam_poll_ = 0;
     uint64_t next_subscription_ = 1;
     DWORD editor_thread_ = 0;
     uint64_t next_handle_ = 1;
@@ -55,8 +58,17 @@ private:
         std::vector<Contribution> contributions;
         struct LogSubscription {uint64_t id;HA_LogCallbackFn callback;uint32_t minimum;uint64_t after;};
         std::vector<LogSubscription> logs;
+        struct SteamSubscription {uint64_t id;HA_SteamCallbackFn callback;uint64_t after;};
+        std::vector<SteamSubscription> steam_subscriptions;
         size_t status_index = 0;
     };
+    Addon* steam_action_owner_ = nullptr;
+    static int HA_CALL steam_snapshot(void*,HA_SteamStateV1*) noexcept;
+    static int HA_CALL steam_friend(void*,uint64_t,uint32_t,HA_SteamFriendV1*) noexcept;
+    static int HA_CALL steam_profile(void*,uint64_t) noexcept;
+    static int HA_CALL steam_friends(void*) noexcept;
+    static uint64_t HA_CALL subscribe_steam(void*,HA_SteamCallbackFn) noexcept;
+    static int HA_CALL unsubscribe_steam(void*,uint64_t) noexcept;
     static uint64_t HA_CALL register_contribution(void*, const HA_ContributionV1*);
     static size_t HA_CALL get_setting(void*, const char*, char*, size_t);
     static int HA_CALL set_setting(void*, const char*, const char*);

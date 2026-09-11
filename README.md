@@ -17,6 +17,9 @@ This is an unofficial project, independent of Valve.
   copy asset paths, and reveal project-local sources. Session history compares new
   and resolved diagnostic messages between complete captured builds. Saved text logs
   can also be inspected with background scanning and cancellation.
+- **Steam account and friends:** automatically view your Steam identity and friends
+  with presence, plus profile and friends overlay shortcuts when available.
+  See the [Steam integration guide](docs/STEAM.md).
 - **Project context:** view the selected project's folders and find project-local
   source files without configuring paths.
 - **Live tool output:** an example of the native log subscription API. Its native

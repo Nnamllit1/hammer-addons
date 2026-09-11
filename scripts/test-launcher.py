@@ -29,8 +29,9 @@ def main():
         env['LOCALAPPDATA'] = str(work / 'localappdata')
         package = work / 'portable'
         for name in ['Launch Workshop Tools.cmd', 'tools_launcher.exe', 'hammer_addons_runtime.dll',
-                     'hammer_addons_ui.dll', 'README.md', 'LAUNCHER.md', 'BUILD_OUTPUT.md', 'TOOL_LOGS.md', 'PROJECT_CONTEXT.md', 'addons/hello/addon.ini', 'addons/hello/hello.dll',
+                     'hammer_addons_ui.dll', 'README.md', 'LAUNCHER.md', 'BUILD_OUTPUT.md', 'TOOL_LOGS.md', 'PROJECT_CONTEXT.md', 'STEAM.md', 'addons/hello/addon.ini', 'addons/hello/hello.dll',
                      'addons/compile_report/addon.ini', 'addons/compile_report/compile_report.dll',
+                     'addons/steam_context/addon.ini', 'addons/steam_context/steam_context.dll',
                      'addons/project_context/addon.ini', 'addons/project_context/project_context.dll',
                      'addons/tool_console/addon.ini', 'addons/tool_console/tool_console.dll']:
             target = package / name
@@ -67,7 +68,7 @@ def main():
         output = run([binaries / 'launch_test.exe', fixture / 'cs2.exe', package / 'hammer_addons_runtime.dll', 'accept'])
         assert 'Own-process runtime loading' in output
         log = (package / 'loader.log').read_text()
-        assert all(f'loaded {name}' in log for name in ['hello', 'compile_report', 'tool_console', 'project_context']) and 'UI initialization queued' in log
+        assert all(f'loaded {name}' in log for name in ['hello', 'compile_report', 'tool_console', 'project_context', 'steam_context']) and 'UI initialization queued' in log
         assert 'factory.request' not in log and 'rejected requires_factory' in log
         output = run([binaries / 'launch_test.exe', fixture / 'csgocfg.exe', package / 'hammer_addons_runtime.dll', 'picker'])
         assert 'Own-process runtime loading' in output

@@ -51,5 +51,17 @@
       "module": "tier0",
       "interface": "ILoggingListener: five methods; LoggingContext prefix channel/flags/severity/color/metadata"
     }
+  ],
+  "steam_profiles": [
+    {
+      "name": "CS2 Steam flat API inspected 2026-09-11",
+      "module": "steam_api64",
+      "sha256": "2a785780af426dfc5c809087d100db8d4ff41a1e1a2956ad5473689e77e3c863",
+      "interfaces": [
+        "SteamAPI_SteamUser_v023",
+        "SteamAPI_SteamFriends_v018",
+        "SteamAPI_SteamUtils_v010"
+      ]
+    }
   ]
 }

@@ -16,6 +16,7 @@ Every public SDK feature has an example:
 | [live_status](../addons/live_status/live_status.cpp) | Programmatic label updates without overwriting editable inputs |
 | [compile_report](../addons/compile_report/compile_report.cpp) | Automatic Hammer build-output observation; optional saved-log background jobs, cancellation and queued callbacks |
 | [tool_console](../addons/tool_console/tool_console.cpp) | Live native tool output, severity filters and subscriptions |
+| [steam_context](../addons/steam_context/steam_context.cpp) | Automatic Steam identity/friends snapshots, presence, paginated table and user-triggered overlay actions |
 | [project_context](../addons/project_context/project_context.cpp) | Verified project folders and project-local source lookup |
 | [hello](../addons/hello/hello.cpp) | Loading, logging, shutdown; factory observations on the legacy proxy |
 | [commands](../addons/commands/commands.cpp) | Menu command, shortcut, tool scope, callback feedback |
@@ -26,7 +27,7 @@ Every public SDK feature has an example:
 
 Builds put optional example DLLs in `dist/examples/addons/`. Copy selected example
 folders into the portable package's `addons/` directory and restart Workshop
-Tools. `hello`, `compile_report`, `project_context` and `tool_console` are installed by default. Example source is also packaged.
+Tools. `hello`, `compile_report`, `project_context`, `steam_context` and `tool_console` are installed by default. Example source is also packaged.
 
 Generate an independently buildable project:
 
@@ -38,7 +39,7 @@ cmake --install ../my_panel/build --config Release --prefix ../my_panel/package
 ```
 
 Templates are `hello`, `commands`, `panel_settings`, `menu_hooks` and
-`note_import`, `picker_notes`, `editor_watch`, `live_status`, `compile_report`, `project_context` and `tool_console`. `--tools` changes manifest tool tags. Change each
+`note_import`, `picker_notes`, `editor_watch`, `live_status`, `compile_report`, `project_context`, `steam_context` and `tool_console`. `--tools` changes manifest tool tags. Change each
 contribution's `tool` and `target` in source to change its UI placement.
 
 ## Registration and ownership
@@ -202,3 +203,6 @@ not row indices. The `compile_report` example demonstrates a Problems table.
 
 Panels scroll vertically when their controls exceed the available dock space.
 Project-aware extensions can use the [project context API](PROJECT_CONTEXT.md).
+
+Steam identity, friends, presence and user-triggered overlay actions are available
+through the [Steam API](STEAM.md) and the bundled `steam_context` example.

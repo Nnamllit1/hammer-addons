@@ -198,7 +198,7 @@ def main():
         templates = directory / 'templates'
         templates.mkdir()
         project = ['cmake_minimum_required(VERSION 3.24)', 'project(examples LANGUAGES CXX)']
-        for template in ['commands', 'panel_settings', 'menu_hooks', 'note_import', 'compile_report', 'tool_console', 'project_context']:
+        for template in ['commands', 'panel_settings', 'menu_hooks', 'note_import', 'compile_report', 'tool_console', 'project_context', 'steam_context']:
             ident = 'generated_' + template
             output = templates / ident
             result = subprocess.run(['python', str(root / 'dist/scripts/new-addon.py'), ident,
@@ -212,7 +212,7 @@ def main():
                         [cmake, '--install', str(templates / 'build'), '--config', 'Release', '--prefix', str(package / 'addons')]]:
             result = subprocess.run(command, capture_output=True, text=True, timeout=120)
             assert result.returncode == 0, result.stdout + result.stderr
-        run(0, 'loaded=9 rejected=0 disabled=1', 'loaded generated_note_import', 'loaded generated_compile_report', 'loaded generated_tool_console')
+        run(0, 'loaded=10 rejected=0 disabled=1', 'loaded generated_note_import', 'loaded generated_compile_report', 'loaded generated_tool_console')
 
     print(f'{count} native integration scenarios passed.')
 

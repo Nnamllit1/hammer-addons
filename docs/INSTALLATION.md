@@ -81,6 +81,10 @@ appears as **Launch Workshop Tools**.
 5. Wait for Asset Browser to open. Startup may take about a minute after you
    launch the selected project.
 
+To view your Steam account and friends, open **Workshop Add-ons > Steam account
+and friends** in the add-ons window. The panel updates automatically. Overlay
+shortcuts depend on Steam overlay availability; see [Steam support](STEAM.md).
+
 The launcher normally finds CS2 automatically. The project picker opens on every
 launch, even if you have only one project. The framework does not automatically
 choose a project or reuse an earlier choice. Close the picker to cancel.

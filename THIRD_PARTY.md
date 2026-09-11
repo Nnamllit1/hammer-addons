@@ -23,3 +23,10 @@ in the [CS2 SDK logging header](https://github.com/alliedmodders/hl2sdk/blob/cs2
 maintained by AlliedModders. It uses the already-installed Valve tier0.dll; no
 Valve runtime binary or full SDK header is redistributed. Its supported binary
 hashes are recorded separately in compatibility.json's logging_profiles.
+
+## Steam integration
+
+The Steam provider uses a small set of documented flat C functions exported by
+Workshop Tools' existing Steam library. Steam SDK headers and Steam runtime binaries
+are not redistributed in this repository or its packages. Steam and CS2 remain
+subject to Valve's terms. See the [Steam integration guide](docs/STEAM.md).

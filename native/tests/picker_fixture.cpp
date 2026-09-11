@@ -47,7 +47,7 @@ int main(int argc,char** argv) {
                 auto* manager=window.findChild<QMainWindow*>();
                 auto* rows=manager ? manager->findChild<QTreeWidget*>("HammerAddonsList") : nullptr;
                 auto* notes=manager ? manager->findChild<QDockWidget*>("HA.Panel.picker_notes.preferences") : nullptr;
-                if(notes && rows && rows->topLevelItemCount()==1 && rows->topLevelItem(0)->text(0)=="picker_notes" &&
+                if(notes && rows && rows->topLevelItemCount()==2 && rows->topLevelItem(0)->text(0)=="picker_notes" &&
                    rows->topLevelItem(0)->text(2)=="Loaded") {
                     auto* action=manager->findChild<QAction*>("HA.Action.picker_notes.preferences");
                     auto* reminder=notes->findChild<QLineEdit*>("HA.Control.name");
@@ -70,7 +70,7 @@ int main(int argc,char** argv) {
                         manager->close();
                         button->click();
                         if(!manager->isVisible() || !dock->isVisible() || dock->isFloating() ||
-                           !rows->isVisible() || rows->topLevelItemCount()!=1 ||
+                           !rows->isVisible() || rows->topLevelItemCount()!=2 ||
                            manager->findChildren<QDockWidget*>("HammerAddonsDock").size()!=1 ||
                            reminder->text()!="Fixture reminder") {
                             std::cerr<<"Reopening the picker manager did not restore its dock and contents.\n";

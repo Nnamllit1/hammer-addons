@@ -38,6 +38,8 @@ if ($Test) {
     if ($LASTEXITCODE) { exit $LASTEXITCODE }
     & "$PSScriptRoot\build\native\$Configuration\runtime_test.exe" $PSScriptRoot
     if ($LASTEXITCODE) { exit $LASTEXITCODE }
+    & "$PSScriptRoot\build\native\$Configuration\steam_test.exe" $PSScriptRoot
+    if ($LASTEXITCODE) { exit $LASTEXITCODE }
     & "$PSScriptRoot\build\native\$Configuration\tool_logs_test.exe"
     if ($LASTEXITCODE) { exit $LASTEXITCODE }
     $savedPath = $env:PATH

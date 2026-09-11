@@ -70,7 +70,7 @@ static std::map<std::string, std::string> manifest(const fs::path& file) {
     if (values.contains("tools")) tool_tags(values.at("tools"));
     return values;
 }
-Runtime::Runtime(fs::path root, fs::path settings_root, bool factory_events, std::string process_scope) : settings_(std::move(settings_root)), root_(std::move(root)), factory_events_(factory_events), process_scope_(std::move(process_scope)) {}
+Runtime::Runtime(fs::path root, fs::path settings_root, bool factory_events, std::string process_scope, SteamExports steam_exports) : settings_(std::move(settings_root)), steam_(steam_exports), root_(std::move(root)), factory_events_(factory_events), process_scope_(std::move(process_scope)) {}
 void Runtime::log(std::string_view message) noexcept {
     // A failing or reentrant sink must never unwind through the host ABI or
     // prevent runtime initialization. Drop contended messages instead of waiting.
@@ -148,15 +148,16 @@ Summary Runtime::start() {
             if (!query) throw std::runtime_error("HA_Query export missing");
             current->api = query(HA_ABI_VERSION);
             const auto* api = current->api;
-            const uint64_t capabilities = HA_CAP_LOGGING | (factory_events_ ? HA_CAP_FACTORY_EVENTS : 0) | HA_CAP_UI | HA_CAP_SETTINGS | HA_CAP_MENU_HOOKS | HA_CAP_IMPORTERS | HA_CAP_EDITOR_EVENTS | HA_CAP_LIVE_PANELS | HA_CAP_JOBS | HA_CAP_EDITOR_QUEUE | HA_CAP_TOOL_LOGS | HA_CAP_BUILD_OUTPUT | HA_CAP_PROJECT_CONTEXT | HA_CAP_TABLES;
+            const uint64_t capabilities = HA_CAP_LOGGING | (factory_events_ ? HA_CAP_FACTORY_EVENTS : 0) | HA_CAP_UI | HA_CAP_SETTINGS | HA_CAP_MENU_HOOKS | HA_CAP_IMPORTERS | HA_CAP_EDITOR_EVENTS | HA_CAP_LIVE_PANELS | HA_CAP_JOBS | HA_CAP_EDITOR_QUEUE | HA_CAP_TOOL_LOGS | HA_CAP_BUILD_OUTPUT | HA_CAP_PROJECT_CONTEXT | HA_CAP_TABLES | HA_CAP_STEAM;
             if (!api || api->size < sizeof(HA_AddonV1) || api->abi_version != HA_ABI_VERSION ||
                 !api->id || current->id != api->id || !api->on_load || (api->required_capabilities & ~capabilities))
                 throw std::runtime_error("add-on ABI, ID or required capabilities do not match");
             static const HA_ProjectV1 project_api{sizeof(HA_ProjectV1),1,current_project,source_path};
+            static const HA_SteamV1 steam_api{sizeof(HA_SteamV1),1,steam_snapshot,steam_friend,steam_profile,steam_friends,subscribe_steam,unsubscribe_steam};
             static const HA_LogsV1 log_api{sizeof(HA_LogsV1),1,logs_available,subscribe_logs,unsubscribe_logs};
             static const HA_JobsV1 job_api{sizeof(HA_JobsV1),1,submit_job,cancel_job,post_editor};
             static const HA_ExtensionsV1 extension_api{sizeof(HA_ExtensionsV1), HA_EXTENSIONS_VERSION,
-                register_contribution, get_setting, set_setting, set_panel_text, &job_api, &log_api, &project_api};
+                register_contribution, get_setting, set_setting, set_panel_text, &job_api, &log_api, &project_api, &steam_api};
             current->host = {sizeof(HA_HostV1), HA_ABI_VERSION, capabilities, current, addon_log, current->directory.c_str(), &extension_api};
             current->registering = true;
             int loaded = 0;
@@ -323,6 +324,10 @@ int Runtime::invoke(uint64_t handle, const char* tool, const char* phase, const 
             dispatching_ = true;
             struct Reset { bool& value; ~Reset() { value = false; } } reset{dispatching_};
             const HA_InteractionV1 event{sizeof(HA_InteractionV1),tool,phase,control,value,editor,build};
+            // Overlay requests are scoped to this add-on's direct user action.
+            steam_action_owner_=(editor_thread_==GetCurrentThreadId() &&
+                (event_phase=="command" || event_phase=="panel.click")) ? addon.get() : nullptr;
+            struct ResetAction {Addon*& owner;~ResetAction(){owner=nullptr;}} reset_action{steam_action_owner_};
             try {
                 const int result = c.callback(c.user,&event,response,capacity);
                 if (response && capacity) response[capacity-1] = 0;
@@ -379,6 +384,20 @@ void Runtime::pump_jobs() noexcept {
         if(editor_thread_!=GetCurrentThreadId())return;
         dispatching_=true;
         struct Reset{bool& value;~Reset(){value=false;}} reset{dispatching_};
+        if((process_scope_=="tools" || process_scope_=="project_picker") && GetTickCount64()>=next_steam_poll_) {
+            next_steam_poll_=GetTickCount64()+1000;steam_.refresh();
+        }
+        for(const auto& a:addons_)if(a->active) {
+            const auto subscriptions=a->steam_subscriptions;
+            for(const auto& subscription:subscriptions) {
+                auto current=std::find_if(a->steam_subscriptions.begin(),a->steam_subscriptions.end(),[&](const auto& s){return s.id==subscription.id;});
+                if(!a->active || current==a->steam_subscriptions.end() || current->after==steam_.state().revision)continue;
+                current->after=steam_.state().revision;
+                try {subscription.callback(&steam_.state());}
+                catch(...) {a->active=false;jobs_.stop(a->id);auto& status=statuses_[a->status_index];
+                    status.state="Failed";status.detail="Steam callback threw a C++ exception";log(status.detail);}
+            }
+        }
         for(const auto& a:addons_)if(!a->active)jobs_.stop(a->id);
         for(const auto& line:tool_logs_.take()) {
             for(const auto& a:addons_)if(a->active) {
@@ -447,5 +466,48 @@ const HA_ProjectInfoV1* HA_CALL Runtime::current_project(void* context) noexcept
 size_t HA_CALL Runtime::source_path(void* context,const char* path,char* output,size_t capacity) noexcept {
     auto* addon=static_cast<Addon*>(context);
     return addon ? addon->owner->project_.source(path,output,capacity) : 0;
+}
+}
+
+namespace ha {
+int HA_CALL Runtime::steam_snapshot(void* context,HA_SteamStateV1* output) noexcept {
+    try {auto* a=static_cast<Addon*>(context);if(!a || !output || output->size<sizeof(*output))return 0;
+        std::unique_lock lock(a->owner->callbacks_,std::try_to_lock);
+        if(!lock.owns_lock() || (!a->active && !a->registering))return 0;
+        *output=a->owner->steam_.state();return 1;
+    }catch(...){return 0;}
+}
+int HA_CALL Runtime::steam_friend(void* context,uint64_t revision,uint32_t index,HA_SteamFriendV1* output) noexcept {
+    try {auto* a=static_cast<Addon*>(context);if(!a || !output || output->size<sizeof(*output))return 0;
+        std::unique_lock lock(a->owner->callbacks_,std::try_to_lock);
+        return lock.owns_lock() && (a->active || a->registering) && a->owner->steam_.friend_at(revision,index,*output);
+    }catch(...){return 0;}
+}
+int HA_CALL Runtime::steam_profile(void* context,uint64_t id) noexcept {
+    try {auto* a=static_cast<Addon*>(context);if(!a)return 0;
+        std::unique_lock lock(a->owner->callbacks_,std::try_to_lock);
+        return lock.owns_lock() && a->active && a->owner->steam_action_owner_==a &&
+            a->owner->editor_thread_==GetCurrentThreadId() && a->owner->steam_.open_profile(id);
+    }catch(...){return 0;}
+}
+int HA_CALL Runtime::steam_friends(void* context) noexcept {
+    try {auto* a=static_cast<Addon*>(context);if(!a)return 0;
+        std::unique_lock lock(a->owner->callbacks_,std::try_to_lock);
+        return lock.owns_lock() && a->active && a->owner->steam_action_owner_==a &&
+            a->owner->editor_thread_==GetCurrentThreadId() && a->owner->steam_.open_friends();
+    }catch(...){return 0;}
+}
+uint64_t HA_CALL Runtime::subscribe_steam(void* context,HA_SteamCallbackFn callback) noexcept {
+    try {auto* a=static_cast<Addon*>(context);if(!a || !callback)return 0;
+        std::unique_lock lock(a->owner->callbacks_,std::try_to_lock);
+        if(!lock.owns_lock() || (!a->active && !a->registering) || a->steam_subscriptions.size()>=4)return 0;
+        const auto id=a->owner->next_subscription_++;a->steam_subscriptions.push_back({id,callback,0});return id;
+    }catch(...){return 0;}
+}
+int HA_CALL Runtime::unsubscribe_steam(void* context,uint64_t id) noexcept {
+    try {auto* a=static_cast<Addon*>(context);if(!a)return 0;
+        std::unique_lock lock(a->owner->callbacks_,std::try_to_lock);
+        return lock.owns_lock() && std::erase_if(a->steam_subscriptions,[id](const auto& s){return s.id==id;})!=0;
+    }catch(...){return 0;}
 }
 }
