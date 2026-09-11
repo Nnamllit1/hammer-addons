@@ -9,6 +9,7 @@
 #include "steam.h"
 #include <windows.h>
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -16,6 +17,9 @@
 #include <vector>
 
 namespace ha {
+struct ApprovalRequest {std::string id,digest;std::filesystem::path directory;std::string publisher,fingerprint;};
+void review_addon_packages(const std::filesystem::path& root,const std::function<bool(const ApprovalRequest&)>& decide);
+
 struct Summary { unsigned loaded = 0, rejected = 0, disabled = 0; };
 class Runtime {
 public:
@@ -34,7 +38,7 @@ public:
     void initialization_error(const std::string& error);
     void log(std::string_view message) noexcept;
 private:
-    struct Status { std::string id, version, state, detail; std::vector<std::string> tools; };
+    struct Status { std::string id, version, state, detail; std::vector<std::string> tools; std::string signature="Not checked",publisher,fingerprint,contact,website,approval_digest; };
     std::vector<Status> statuses_;
     std::string notice_;
     Settings settings_;

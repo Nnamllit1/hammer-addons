@@ -135,14 +135,14 @@ class Panel final : public QObject {
         layout->addWidget(notice_);
         rows_ = new QTreeWidget(panel);
         rows_->setObjectName(QStringLiteral("HammerAddonsList"));
-        rows_->setHeaderLabels({QStringLiteral("Add-on"), QStringLiteral("Version"), QStringLiteral("Status"), QStringLiteral("Details"), QStringLiteral("Tools")});
+        rows_->setHeaderLabels({QStringLiteral("Add-on"), QStringLiteral("Version"), QStringLiteral("Status"), QStringLiteral("Details"), QStringLiteral("Tools"), QStringLiteral("Signature"), QStringLiteral("Publisher"), QStringLiteral("Publisher key (SHA-256)")});
         rows_->setRootIsDecorated(false);
         rows_->setAlternatingRowColors(true);
         rows_->setMinimumHeight(70);
         rows_->header()->setSectionResizeMode(QHeaderView::ResizeToContents);
         rows_->header()->setStretchLastSection(true);
         layout->addWidget(rows_);
-        auto* help = new QLabel(QStringLiteral("Drop add-ons into the folder, then restart Workshop Tools. Edit addon.ini to enable or disable an add-on."), panel);
+        auto* help = new QLabel(QStringLiteral("Install only trusted add-ons, then restart Workshop Tools. Move signed add-ons outside the folder to disable them."), panel);
         help->setWordWrap(true);
         layout->addWidget(help);
         dock->setWidget(tabs_);
@@ -237,7 +237,12 @@ class Panel final : public QObject {
             disabled += state == QStringLiteral("Disabled");
             failed += state == QStringLiteral("Failed");
             auto* row = new QTreeWidgetItem(rows_, {addon.value(QStringLiteral("id")).toString(),
-                addon.value(QStringLiteral("version")).toString(), state, addon.value(QStringLiteral("detail")).toString(), labels.join(QStringLiteral(", "))});
+                addon.value(QStringLiteral("version")).toString(), state, addon.value(QStringLiteral("detail")).toString(), labels.join(QStringLiteral(", ")), addon["signature"].toString("Not checked"), addon["publisher"].toString(), addon["publisher_fingerprint"].toString()});
+            const auto publisherInfo=QString("Self-declared publisher details\nName: %1\nContact: %2\nWebsite: %3\nKey fingerprint: %4\nA valid signature is not proof of safety or legal identity.")
+                .arg(addon["publisher"].toString(),addon["publisher_contact"].toString(),addon["publisher_website"].toString(),addon["publisher_fingerprint"].toString());
+            const auto approval=addon["approval_digest"].toString();
+            const auto provenance=approval.isEmpty()?publisherInfo:QString("Local package approval, not a publisher certificate.\nPackage SHA-256: %1\nOnly these exact bytes were approved for this Windows user.").arg(approval);
+            for(int column=5;column<=7;++column)row->setToolTip(column,"<pre>"+provenance.toHtmlEscaped()+"</pre>");
             row->setToolTip(3, row->text(3));
         }
         summary_->setText(QStringLiteral("%1 loaded  |  %2 disabled  |  %3 failed").arg(loaded).arg(disabled).arg(failed));

@@ -126,7 +126,11 @@ Closing the project picker normally cancels startup. An abnormal picker exit
 instead reports its hexadecimal exit code as a launch failure; include that
 code when reporting a crash.
 
-The package must be writable for logs. Keep it outside
+First-use package and publisher approval happens before starting the picker, so
+it is outside the process-startup deadline. Unapproved or modified packages remain
+unloaded. See [signatures, local approvals and CI keys](SIGNING.md).
+
+The package must be writable for logs and local approval records. Keep it outside
 CS2 and do not use junction/symlink paths. Steam must already be available for the
 normal CS2 startup flow. If CS2 exits or relaunches into another process, the
 helper reports failure rather than attaching to that other process.

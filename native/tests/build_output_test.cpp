@@ -1,5 +1,5 @@
 #include "qt_compat.h"
-#include "runtime.h"
+#include "runtime_fixture.h"
 #include "ui_bridge.h"
 #include <QApplication>
 #include <QDialog>
@@ -60,7 +60,7 @@ int main(int argc,char** argv){
         fs::create_directories(executable.parent_path());std::ofstream(executable)<<"fixture";
         fs::create_directories(source.parent_path());std::ofstream(source)<<"material";
         fs::create_directories(install/"game/csgo_addons/test");
-        ha::Runtime owned(package,package/"settings",false,"tools");runtime=&owned;
+        RuntimeFixture owned(package,package/"settings",false,"tools");runtime=&owned;
         check(owned.initialize_project(executable,{L"-tools",L"-insecure",L"-addon",L"test"}),"runtime project initialization");
         check(owned.start().loaded==2,"real examples load");
         uint64_t contextPanel=0;

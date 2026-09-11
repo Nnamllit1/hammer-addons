@@ -18,7 +18,7 @@
 #include <thread>
 
 extern "C" __declspec(dllimport) int __cdecl HA_StartUi(const HA_UiHost*);
-static QByteArray status = R"({"directory":"C:/addons","notice":"","addons":[{"id":"hello","version":"0.1.0","state":"Loaded","detail":"Ready","tools":["all"]},{"id":"off","version":"1.0.0","state":"Disabled","detail":"Disabled in addon.ini","tools":["modeldoc"]},{"id":"broken","version":"","state":"Failed","detail":"Missing DLL","tools":["asset_browser","hammer"]}]})";
+static QByteArray status = R"json({"directory":"C:/addons","notice":"","addons":[{"id":"hello","version":"0.1.0","state":"Loaded","detail":"Ready","tools":["all"],"signature":"Valid (locally pinned key)","publisher":"Example <img src=https://example.invalid/a>","publisher_contact":"author@example.invalid","publisher_fingerprint":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"},{"id":"off","version":"1.0.0","state":"Disabled","detail":"Disabled in addon.ini","tools":["modeldoc"]},{"id":"broken","version":"","state":"Failed","detail":"Missing DLL","tools":["asset_browser","hammer"]}]})json";
 static bool busy = false;
 static size_t __cdecl read_status(void*, char* out, size_t capacity) {
     if (busy) return 0;
@@ -79,6 +79,11 @@ int main(int argc, char** argv) {
         auto* rows = dock->findChild<QTreeWidget*>("HammerAddonsList");
         check(rows && rows->topLevelItemCount() == 2);
         check(rows->topLevelItem(1)->text(2) == "Failed");
+        const auto* signedRow=rows->topLevelItem(0);
+        check(signedRow->text(5)=="Valid (locally pinned key)");
+        check(signedRow->text(7)=="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef");
+        check(signedRow->toolTip(6).contains("author@example.invalid") && signedRow->toolTip(6).contains("&lt;img") && !signedRow->toolTip(6).contains("<img"));
+        check(rows->topLevelItem(1)->text(5)=="Not checked");
         check(dock->findChild<QLabel*>("HammerAddonsSummary")->text().startsWith("1 loaded"));
         check(HA_StartUi(&host) == 1); pump();
         check(hammer->findChildren<QDockWidget*>("HammerAddonsDock").size() == 1);

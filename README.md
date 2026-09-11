@@ -9,6 +9,11 @@ menu-action hooks, custom file handlers, editor metadata observations, backgroun
 queued editor callbacks, automatic Hammer build-output observation, and a manager with tool filters. Use it to install compatible add-ons or build your
 own against the included SDK.
 
+Authors can [sign add-on packages offline](docs/SIGNING.md) with their own publisher
+keys. First-use approval is required for unfamiliar publisher keys and unsigned
+packages. Unsigned approvals cover exact package contents; changed files are blocked
+until explicitly reapproved. Publisher keys can be exported for Windows CI signing.
+
 This is an unofficial project, independent of Valve.
 
 ## Included tools
@@ -64,7 +69,8 @@ installations; [migration instructions](docs/LAUNCHER.md#migrating-a-replacement
 explain the paths and command.
 
 Drop compatible native add-ons into the portable `addons/` folder and restart
-Workshop Tools. Set `enabled=false` in an add-on manifest to disable it, or create
+Workshop Tools. Move an add-on folder outside `addons/` to disable it while
+preserving its signed or locally approved contents, or create
 a `disabled` file beside the portable runtime to disable all add-ons. Native
 add-ons execute with the editor's permissions and are not sandboxed.
 

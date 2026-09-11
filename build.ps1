@@ -32,6 +32,10 @@ if ($LASTEXITCODE) { exit $LASTEXITCODE }
 $legacyProxy = Join-Path $PSScriptRoot 'dist\hammer.dll'
 if (Test-Path -LiteralPath $legacyProxy) { Remove-Item -LiteralPath $legacyProxy -Force }
 if ($Test) {
+    & "$PSScriptRoot\build\native\$Configuration\approval_test.exe" $PSScriptRoot
+    if ($LASTEXITCODE) { exit $LASTEXITCODE }
+    & python "$PSScriptRoot\scripts\test-signing.py" --bin "$PSScriptRoot\build\native\$Configuration"
+    if ($LASTEXITCODE) { exit $LASTEXITCODE }
     & python "$PSScriptRoot\scripts\test-release.py"
     if ($LASTEXITCODE) { exit $LASTEXITCODE }
     & "$PSScriptRoot\build\native\$Configuration\diagnostics_test.exe"

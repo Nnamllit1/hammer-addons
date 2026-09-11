@@ -1,5 +1,5 @@
 #include "qt_compat.h"
-#include "runtime.h"
+#include "runtime_fixture.h"
 #include "ui_bridge.h"
 #include <QApplication>
 #include <QMainWindow>
@@ -85,14 +85,14 @@ int main(int argc,char** argv) {
             if(std::string(name)!="jobs_probe")fs::copy_file(root/"addons"/name/"addon.ini",folder/"addon.ini");
             else std::ofstream(folder/"addon.ini")<<"[addon]\nformat=1\nid=jobs_probe\nversion=0.1.0\nabi=1\nentry=jobs_probe.dll\nenabled=true\n";
         }
-        ha::Runtime owned(package,package/"settings",false,"tools");runtime=&owned;
+        RuntimeFixture owned(package,package/"settings",false,"tools");runtime=&owned;
         HMODULE tier0=nullptr;
         if(argc==3) {
             const auto path=QString::fromLocal8Bit(argv[2]).toStdWString();
             tier0=LoadLibraryExW(path.c_str(),nullptr,LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR|LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
             check(tier0 && runtime->attach_tool_logs(tier0),"original engine logger attachment");
         }
-        check(runtime->start().loaded==3,"real jobs/logging add-ons load");
+        check(owned.start().loaded==3,"real jobs/logging add-ons load");
         HA_ExtensionsV1 oldTable{};oldTable.size=offsetof(HA_ExtensionsV1,jobs);oldTable.version=1;
         HA_HostV1 oldHost{};oldHost.size=sizeof(oldHost);oldHost.abi_version=1;oldHost.extensions=&oldTable;
         check(HA_GetExtensions(&oldHost) && !HA_GetJobs(&oldHost),"old extension prefix remains supported");

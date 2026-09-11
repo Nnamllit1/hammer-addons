@@ -374,3 +374,24 @@ errors; its rerun with worker reuse disabled passed.
 
 These results address the reproduced UI cleanup crash. The native logging
 provider remains disabled until its own live verification is complete.
+
+## Offline signing and package approval, 2026-09-12
+
+- Windows x64 Release build and the native, Qt, jobs, editor, build-output,
+  Steam, launcher and installer regression suites completed successfully.
+  The existing 35 native integration scenarios and SDK scaffold builds passed.
+- 84 signing command checks cover publisher metadata binding, exact file
+  inventories, altered/missing/extra files, malformed signatures, expected-key
+  verification, local pins, protected keys and unsigned approval receipts.
+- A test DLL with a DllMain marker verifies that rejected signatures prevent even
+  DLL entry-point execution; a trusted signed positive control executes the marker.
+- Local approval tests cover declining, first consent, file locks during review,
+  repeat launches, changed contents, explicit reapproval and corrupt receipts.
+  Production runtime loading has no test or environment-variable approval bypass.
+- Portable key export/import and CI-style signing preserve the publisher
+  fingerprint. Tests sign with the portable key after removing access to the local
+  key file, and reject wrong passwords and modified encrypted key envelopes.
+- Qt fixtures check publisher fingerprint/status display and escaping of hostile
+  markup in claimed publisher details. Consent decisions are exercised through
+  the review callback; the real Workshop Tools approval-dialog presentation is
+  not covered by these automated checks.

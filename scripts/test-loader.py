@@ -27,8 +27,15 @@ def main():
         (hello / 'addon.ini').write_text(original)
         shutil.copy2(binaries / 'hello.dll', hello)
 
+        def approve_fixtures(target=None):
+            target = target or package
+            for addon in (target/'addons').iterdir():
+                if addon.is_dir() and (addon/'addon.ini').is_file():
+                    subprocess.run([str(binaries/'addon_sign.exe'),'approve',str(addon),'--store',str(target/'local-approvals')],capture_output=True,timeout=30)
+
         def run(expected, *messages):
             nonlocal count
+            approve_fixtures()
             result = subprocess.run([str(binaries / 'ha_host.exe'), str(package)], capture_output=True, text=True, timeout=15)
             assert result.returncode == expected, result.stdout + result.stderr
             for message in messages:
@@ -77,6 +84,7 @@ def main():
         (bad / 'addon.ini').write_text((bad / 'addon.ini').read_text().replace('enabled=true', 'enabled=false'))
         shutil.copy2(binaries / 'hammer.dll', directory)
         shutil.copy2(binaries / 'hammer_original.dll', directory)
+        approve_fixtures()
         result = subprocess.run([str(binaries / 'proxy_test.exe'), str(directory / 'hammer.dll')], capture_output=True, text=True, timeout=20)
         assert result.returncode == 0, result.stdout + result.stderr
         assert 'hello: hammer.factory.request: ToolSystem2_001' in result.stdout, result.stdout
@@ -87,6 +95,7 @@ def main():
         recursive.mkdir()
         shutil.copy2(binaries / 'reentrant.dll', recursive)
         (recursive / 'addon.ini').write_text(original.replace('hello', 'reentrant'))
+        approve_fixtures()
         result = subprocess.run([str(binaries / 'proxy_test.exe'), str(directory / 'hammer.dll')],
                                 capture_output=True, text=True, timeout=20)
         assert result.returncode == 0, result.stdout + result.stderr
@@ -105,6 +114,7 @@ def main():
         nested.mkdir()
         shutil.copy2(binaries / 'reentrant.dll', nested)
         (nested / 'addon.ini').write_text(original.replace('hello', 'reentrant'))
+        approve_fixtures(browser_package)
         result = subprocess.run([str(binaries / 'proxy_test.exe'), str(browser_dir / 'assetbrowser.dll')],
                                 capture_output=True, text=True, timeout=20)
         assert result.returncode == 0, result.stdout + result.stderr

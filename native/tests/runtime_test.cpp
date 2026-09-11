@@ -1,4 +1,4 @@
-#include "runtime.h"
+#include "runtime_fixture.h"
 #include <array>
 #include <atomic>
 #include <fstream>
@@ -120,7 +120,7 @@ int wmain(int argc, wchar_t** argv) {
         check(settings.set("sample", "shared", "last"), "save after concurrent writes succeeds");
         for (const auto& file : fs::directory_iterator(folder))
             check(file.path().extension() != ".pending" || file.path() == stale, "concurrent writer cleanup");
-        ha::Runtime runtime(temp.path, temp.path / "settings");
+        RuntimeFixture runtime(temp.path, temp.path / "settings");
         FailingConsole failing;
         {
             ConsoleRedirect redirect(&failing);
@@ -142,7 +142,7 @@ int wmain(int argc, wchar_t** argv) {
         check(read(temp.path / "loader.log").find("outer log") != std::string::npos, "reentrant logger must return");
         fs::create_directory(temp.path / "unwritable");
         fs::create_directory(temp.path / "unwritable/loader.log");
-        ha::Runtime invalidSink(temp.path / "unwritable", temp.path / "settings");
+        RuntimeFixture invalidSink(temp.path / "unwritable", temp.path / "settings");
         invalidSink.log("file sink unavailable");
         std::cout << "Runtime regressions passed: capability bits, logging failures/reentrancy, stale pending files, rename recovery and concurrent saves.\n";
         return 0;

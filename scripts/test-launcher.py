@@ -19,7 +19,13 @@ def main():
     env['PATH'] = str(qt / 'bin') + os.pathsep + env['PATH']
     env['QT_QPA_PLATFORM'] = 'offscreen'
     env['QT_PLUGIN_PATH'] = str(qt / 'plugins')
+    package=None
     def run(command, expected=0, timeout=100):
+        if package is not None and (package/'addons').exists():
+            for addon in (package/'addons').iterdir():
+                if addon.is_dir():
+                    subprocess.run([str(binaries/'addon_sign.exe'),'approve',str(addon),'--store',str(package/'local-approvals')],env=env,capture_output=True,timeout=30)
+
         result = subprocess.run(command if isinstance(command, str) else [str(v) for v in command], env=env, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=timeout)
         assert result.returncode == expected, (command, result.stdout, result.stderr)
         return result.stdout + result.stderr
@@ -29,7 +35,7 @@ def main():
         env['LOCALAPPDATA'] = str(work / 'localappdata')
         package = work / 'portable'
         for name in ['Launch Workshop Tools.cmd', 'tools_launcher.exe', 'hammer_addons_runtime.dll',
-                     'hammer_addons_ui.dll', 'README.md', 'LAUNCHER.md', 'BUILD_OUTPUT.md', 'TOOL_LOGS.md', 'PROJECT_CONTEXT.md', 'STEAM.md', 'addons/hello/addon.ini', 'addons/hello/hello.dll',
+                     'hammer_addons_ui.dll', 'README.md', 'LAUNCHER.md', 'BUILD_OUTPUT.md', 'TOOL_LOGS.md', 'PROJECT_CONTEXT.md', 'STEAM.md', 'SIGNING.md', 'addon_sign.exe', 'addons/hello/addon.ini', 'addons/hello/hello.dll',
                      'addons/compile_report/addon.ini', 'addons/compile_report/compile_report.dll',
                      'addons/steam_context/addon.ini', 'addons/steam_context/steam_context.dll',
                      'addons/project_context/addon.ini', 'addons/project_context/project_context.dll',

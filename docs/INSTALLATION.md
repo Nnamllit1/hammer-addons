@@ -75,6 +75,8 @@ appears as **Launch Workshop Tools**.
 1. Open Steam and sign in.
 2. Close any running CS2 or Workshop Tools window.
 3. Double-click **Launch Workshop Tools.cmd** in the extracted folder.
+   Approve only add-ons or publisher keys you trust when the launcher asks. Declining
+   keeps that add-on unloaded. These prompts happen before the project picker opens.
 4. Valve's normal **Workshop Tools** project-selection window opens, just as it
    does through Steam. Select your project (or create a new one), then click
    **Launch Tools**.
@@ -249,3 +251,14 @@ Remove the optional non-Steam entry from your library as well.
 This removes the portable loader; it does not remove CS2 or your Workshop
 projects. Per-user add-on settings may remain. Older replacement-DLL
 installations require the migration/uninstall procedure linked above.
+
+## Check an add-on publisher
+
+The Add-ons tab shows package signatures and publisher fingerprints. A signed
+package identifies its signing key; it does not establish that the author or code
+is trustworthy. For offline verification and publisher-key approval,
+follow the [signing guide](SIGNING.md). Preserve `publisher-pins/` when updating the
+launcher, and retain `local-approvals/` for previously approved unsigned packages
+on the same Windows account. Changed unsigned packages are blocked until you
+explicitly reapprove their new contents. Move an add-on outside `addons/` to
+disable it without changing its signed or approved contents.

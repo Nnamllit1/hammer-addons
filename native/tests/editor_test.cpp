@@ -1,5 +1,5 @@
 #include "qt_compat.h"
-#include "runtime.h"
+#include "runtime_fixture.h"
 #include "ui_bridge.h"
 #include <QApplication>
 #include <QMainWindow>
@@ -65,8 +65,8 @@ int main(int argc,char** argv) {
             if(std::string(name)!="extension_probe")fs::copy_file(root/"addons"/name/"addon.ini",folder/"addon.ini");
             else std::ofstream(folder/"addon.ini")<<"[addon]\nformat=1\nid=extension_probe\nversion=0.1.0\nabi=1\nentry=extension_probe.dll\nenabled=true\n";
         }
-        ha::Runtime owned(package,package/"settings",false,"tools");runtime=&owned;
-        check(runtime->start().loaded==3,"new examples load");
+        RuntimeFixture owned(package,package/"settings",false,"tools");runtime=&owned;
+        check(owned.start().loaded==3,"new examples load");
         HA_InteractionV1 oldEvent{};oldEvent.size=offsetof(HA_InteractionV1,editor);
         check(!HA_GetEditorState(&oldEvent),"old interaction bounds");
         HA_ExtensionsV1 oldTable{};oldTable.size=offsetof(HA_ExtensionsV1,set_panel_text);oldTable.version=1;

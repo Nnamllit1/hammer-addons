@@ -1,4 +1,5 @@
 #include "runtime.h"
+#include "signing.h"
 #include <algorithm>
 #include <cstring>
 #include <fstream>
@@ -117,6 +118,13 @@ Summary Runtime::start() {
         statuses_.push_back({path.filename().string(), "", "Failed", "", {}});
         auto& status = statuses_.back();
         try {
+            status.signature="Invalid";
+            auto signature=signing::verify(path);
+            status.signature=signature.signed_package?"Valid (self-declared publisher)":"Unsigned";
+            status.publisher=signature.publisher.name;status.fingerprint=signature.fingerprint;
+            status.contact=signature.publisher.contact;status.website=signature.publisher.website;
+            const bool publisher_pinned=signing::check_publisher(root_/"publisher-pins",status.id,signature);
+            if(publisher_pinned)status.signature="Valid (locally pinned key)";
             const auto data = manifest(path / "addon.ini");
             status.version = data.at("version");
             if (data.contains("tools")) status.tools = tool_tags(data.at("tools"));
@@ -128,6 +136,15 @@ Summary Runtime::start() {
             if((process_scope_=="project_picker" && !picker_tag) ||
                (process_scope_=="tools" && picker_tag && status.tools.size()==1)) {
                 status.state="Skipped";status.detail="Not enabled for this application";continue;
+            }
+            if(signature.signed_package && !publisher_pinned)throw std::runtime_error("Publisher key needs approval in the launcher before this signed add-on can run");
+            if(!signature.signed_package){
+                status.signature="Unapproved (unsigned)";
+                auto snapshot=signing::unsigned_snapshot(path);status.approval_digest=snapshot.package_digest;
+                if(!signing::locally_approved(path,root_/"local-approvals",snapshot))
+                    throw std::runtime_error("Unsigned package needs approval in the launcher before any DLL code can run");
+                signature.locks=std::move(snapshot.locks);signature.pin_locks=std::move(snapshot.pin_locks);
+                status.signature="Approved locally (unsigned)";
             }
             const auto entry = fs::absolute(path / data.at("entry"));
             if (!plain_path(entry)) throw std::runtime_error("DLL path contains a reparse point");
@@ -228,7 +245,9 @@ std::string Runtime::status_json() {
             if (i) out += ',';
             out += json_quote(status.tools[i]);
         }
-        out += "]}";
+        out += "],\"signature\":"+json_quote(status.signature)+",\"publisher\":"+json_quote(status.publisher)+
+            ",\"publisher_fingerprint\":"+json_quote(status.fingerprint)+",\"publisher_contact\":"+json_quote(status.contact)+
+            ",\"publisher_website\":"+json_quote(status.website)+",\"approval_digest\":"+json_quote(status.approval_digest)+"}";
     }
     out += "],\"contributions\":[";
     first = true;
@@ -509,5 +528,30 @@ int HA_CALL Runtime::unsubscribe_steam(void* context,uint64_t id) noexcept {
         std::unique_lock lock(a->owner->callbacks_,std::try_to_lock);
         return lock.owns_lock() && std::erase_if(a->steam_subscriptions,[id](const auto& s){return s.id==id;})!=0;
     }catch(...){return 0;}
+}
+}
+
+namespace ha {
+void review_addon_packages(const fs::path& root,const std::function<bool(const ApprovalRequest&)>& decide){
+    if(!plain_path(root) || fs::exists(root/"disabled") || !fs::exists(root/"addons"))return;
+    if(!plain_path(root/"addons"))throw std::runtime_error("Invalid add-ons directory");
+    std::vector<fs::path> paths;
+    for(const auto& entry:fs::directory_iterator(root/"addons"))if(entry.is_directory())paths.push_back(entry.path());
+    std::sort(paths.begin(),paths.end());
+    for(const auto& path:paths)try {
+        const auto data=manifest(path/"addon.ini");
+        if(data.at("id")!=path.filename().string() || data.at("enabled")=="false")continue;
+        auto verified=signing::verify(path);
+        const bool pinned=signing::check_publisher(root/"publisher-pins",data.at("id"),verified);
+        if(verified.signed_package){
+            if(!pinned && decide && decide({data.at("id"),"",path,verified.publisher.name,verified.fingerprint}))
+                signing::pin_publisher(path,root/"publisher-pins",verified.fingerprint);
+            continue;
+        }
+        auto snapshot=signing::unsigned_snapshot(path);
+        if(signing::locally_approved(path,root/"local-approvals",snapshot))continue;
+        // Keep the reviewed files locked throughout the decision and receipt write.
+        if(decide && decide({data.at("id"),snapshot.package_digest,path}))signing::approve_local(path,root/"local-approvals");
+    }catch(const std::exception& e){std::cerr<<"Add-on "<<path.filename().string()<<": "<<e.what()<<'\n';}
 }
 }

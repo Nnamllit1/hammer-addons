@@ -27,7 +27,7 @@ def package(version, destination):
         if set(archive.namelist()) != {'Hammer Addons/' + n for n in module.FILES} or archive.testzip():
             raise ValueError('Unexpected portable archive contents')
     sdk = destination / f'hammer-addons-{version}-sdk.zip'
-    files = [ROOT/'README.md', ROOT/'THIRD_PARTY.md', ROOT/'scripts/new-addon.py']
+    files = [ROOT/'dist/portable/addon_sign.exe', ROOT/'README.md', ROOT/'THIRD_PARTY.md', ROOT/'scripts/new-addon.py']
     files += sorted((ROOT/'sdk/include').glob('*.h'))
     files += sorted((ROOT/'docs').glob('*.md'))
     for folder in sorted((ROOT/'addons').iterdir()):
@@ -35,7 +35,7 @@ def package(version, destination):
             files += sorted(folder.glob('*.cpp')) + sorted(folder.glob('*.h')) + sorted(folder.glob('*.ini')) + sorted(folder.glob('*.hanote'))
     with zipfile.ZipFile(sdk, 'w', zipfile.ZIP_DEFLATED) as archive:
         for file in files:
-            archive.write(file, 'Hammer Addons SDK/' + file.relative_to(ROOT).as_posix())
+            archive.write(file, 'Hammer Addons SDK/' + ('addon_sign.exe' if file.name=='addon_sign.exe' else file.relative_to(ROOT).as_posix()))
     with zipfile.ZipFile(sdk) as archive:
         if archive.testzip(): raise ValueError('SDK archive corrupted')
     commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()

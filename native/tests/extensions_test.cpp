@@ -1,5 +1,5 @@
 #include "qt_compat.h"
-#include "runtime.h"
+#include "runtime_fixture.h"
 #include "ui_bridge.h"
 #include <QApplication>
 #include <QCheckBox>
@@ -84,8 +84,8 @@ int main(int argc,char** argv) {
         fs::create_directories(probe);
         fs::copy_file(fs::path(QCoreApplication::applicationDirPath().toStdWString())/"extension_probe.dll",probe/"extension_probe.dll");
         std::ofstream(probe/"addon.ini")<<"[addon]\nformat=1\nid=extension_probe\nversion=0.1.0\nabi=1\nentry=extension_probe.dll\nenabled=true\n";
-        ha::Runtime owned(package,work/"settings"); runtime=&owned;
-        auto summary=runtime->start();
+        RuntimeFixture owned(package,work/"settings"); runtime=&owned;
+        auto summary=owned.start();
         check(summary.loaded==5 && summary.rejected==0,"real examples load");
         // Legacy hosts have no appended extension pointer; helper must not read it.
         HA_HostV1 legacy{}; legacy.size=static_cast<uint32_t>(offsetof(HA_HostV1,extensions));

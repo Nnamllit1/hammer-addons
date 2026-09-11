@@ -111,6 +111,22 @@ int wmain(int argc,wchar_t** argv) {
         std::wcout<<L"CS2: "<<root.wstring()<<L"\nAdd-ons: "<<(folder/L"addons").wstring()<<L"\n";
         if(check) {std::cout<<"Original Valve Asset Browser verified. Portable package ready. No process started.\n";return 0;}
         if(cs2_running()) throw std::runtime_error("Close CS2 and Workshop Tools first. This launcher starts its own tools session and never attaches to an existing game.");
+        // Review before starting processes: a human decision has no remote-start timeout.
+        ha::review_addon_packages(folder,[](const ha::ApprovalRequest& request){
+            const std::wstring id(request.id.begin(),request.id.end()),digest(request.digest.begin(),request.digest.end());
+            if(!request.fingerprint.empty()){
+                const auto publisher=fs::path(std::u8string(reinterpret_cast<const char8_t*>(request.publisher.c_str()))).wstring();
+                const std::wstring fingerprint(request.fingerprint.begin(),request.fingerprint.end());
+                const auto text=L"This package has a valid signature from a publisher key you have not approved.\n\nAdd-on: "+id+
+                    L"\nClaimed publisher (identity not verified): "+publisher+L"\nPublisher SHA-256: "+fingerprint+
+                    L"\n\nTrust this key for this add-on, including future updates signed with the same key? Native add-ons run with your Windows permissions. A signature is not proof of safety.";
+                return MessageBoxW(nullptr,text.c_str(),L"Trust add-on publisher key?",MB_YESNO|MB_ICONWARNING|MB_DEFBUTTON2|MB_SETFOREGROUND)==IDYES;
+            }
+            const auto message=L"This add-on has no publisher signature. Its author cannot be identified through a signature.\n\nAdd-on: "+id+
+                L"\nFolder: "+request.directory.wstring()+L"\nPackage SHA-256: "+digest+
+                L"\n\nNative add-ons run code with your Windows account's permissions. Only approve code you trust.\n\nApprove these exact package contents? This records your local approval, not a publisher certificate. Changed files will be blocked until explicitly reapproved.";
+            return MessageBoxW(nullptr,message.c_str(),L"Approve unsigned Hammer add-on?",MB_YESNO|MB_ICONWARNING|MB_DEFBUTTON2|MB_SETFOREGROUND)==IDYES;
+        });
         // Steam opens Valve's project picker. Let it create the selected tools session.
         // Never supply -addon or consult the old launcher-project.txt preference.
         const std::vector<std::wstring> arguments{L"-steam",L"-retail",L"-gpuraytracing",L"-vulkan",L"-insecure",L"-nop4"};

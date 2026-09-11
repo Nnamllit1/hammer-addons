@@ -206,3 +206,6 @@ Project-aware extensions can use the [project context API](PROJECT_CONTEXT.md).
 
 Steam identity, friends, presence and user-triggered overlay actions are available
 through the [Steam API](STEAM.md) and the bundled `steam_context` example.
+
+Add-on authors can distribute [offline-signed packages](SIGNING.md) without changing
+their native DLL ABI. The signature covers packaged dependencies and author claims.

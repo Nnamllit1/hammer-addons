@@ -18,3 +18,9 @@ h2mcp.local.json
 
 # Agent guidance stays in local memory
 /AGENTS.md
+
+# Local signing identities and user trust decisions
+*.hakey
+publisher-pins/
+*.hapkey
+local-approvals/

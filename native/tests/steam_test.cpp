@@ -1,4 +1,4 @@
-#include "runtime.h"
+#include "runtime_fixture.h"
 #include "steam_fixture.h"
 #include <cstring>
 #include <filesystem>
@@ -45,7 +45,7 @@ int wmain(int argc,wchar_t** argv){
         fs::create_directories(temp/L"addons/steam_context");
         fs::copy_file(binaries/L"steam_context.dll",temp/L"addons/steam_context/steam_context.dll");
         fs::copy_file(root/L"addons/steam_context/addon.ini",temp/L"addons/steam_context/addon.ini");
-        ha::Runtime runtime(temp,temp/L"settings",false,"tools",exports());
+        RuntimeFixture runtime(temp,temp/L"settings",false,"tools",exports());
         check(runtime.start().loaded==2,"real Steam example and API probe loaded");
         const auto module=GetModuleHandleW((temp/L"addons/steam_probe/steam_probe.dll").c_str());
         auto get_host=reinterpret_cast<const HA_HostV1*(HA_CALL*)()>(GetProcAddress(module,"SteamProbeHost"));

@@ -111,7 +111,8 @@ called from DLL_PROCESS_DETACH or guaranteed at editor termination. Native hot
 reload requires a future protocol for detaching hooks, callbacks and threads.
 Flush important state during normal execution.
 
-Set `enabled=false` to disable an add-on, or create `disabled` beside the runtime DLL to
+Move an add-on folder outside `addons/` to disable it without changing its signed
+or approved contents, or create `disabled` beside the runtime DLL to
 disable all add-ons while retaining original tools forwarding. Restart Workshop Tools.
 The Workshop Add-ons dock lists loaded, disabled and failed add-ons with reasons.
 Its top menu reopens the dock and opens the add-ons folder. Diagnostics also go to `hammer-addons/loader.log`, stdout and OutputDebugString.
@@ -126,3 +127,12 @@ The legacy Hammer proxy emitted `hammer.factory.request`. New installations
 emit `tools.factory.request` from Asset Browser. Neither is a document-change
 event. The native ABI remains version 1; add-ons filtering event names should
 handle the new name as appropriate.
+
+## Optional package signature
+
+Distribute `addon.signature` beside `addon.ini` to bind the manifest, DLLs, bundled
+files and publisher claims to an author-generated key. The signature is checked
+before native loading; invalid signatures are rejected and unfamiliar keys need
+first-use approval. Unsigned packages require a local approval receipt. See [offline signing and
+publisher pins](SIGNING.md). This is independent of the SDK ABI and Windows
+Authenticode.
