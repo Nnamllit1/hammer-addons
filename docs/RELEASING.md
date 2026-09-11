@@ -1,20 +1,35 @@
-# Publishing releases
+# Release guide
 
-Each release is an immutable versioned snapshot. Use a new version for code changes;
-do not replace binaries on an existing release. Pre-release tags such as
-`v0.1.0-alpha.1` publish as GitHub prereleases.
+This guide is for contributors preparing a Hammer Addons release.
 
-1. Set the base version in CMakeLists.txt and add `docs/releases/<tag>.md`.
-2. Build and test with `build.bat -Test`, then commit and push the changes.
-3. Create and push the version tag on that commit. The Release workflow rebuilds
-   and tests that exact tag on Windows before publishing portable and SDK ZIPs,
-   SHA256SUMS.txt and source provenance. A failed build does not publish a release.
+## Prepare a version
 
-The upload happens to a draft first. The publisher verifies asset checksums before
-making it public. A retry accepts identical assets and refuses replacements.
-The workflow uses GitHub's job-scoped token; no personal token is stored in the repo.
+1. Update the base version in `CMakeLists.txt` and add release notes at
+   `docs/releases/<tag>.md`. Describe user-visible changes, installation or migration
+   steps, and known limitations.
+2. Run `build.bat -Test` and commit the release changes.
+3. Tag that commit, for example `v0.1.0-alpha.1`, and push the commit and tag.
+   GitHub Actions builds and tests the tagged source before publishing its downloads.
 
-For local packaging, run `python scripts/package-release.py --version <tag>`.
-The portable ZIP uses an explicit allowlist; local add-ons, diagnostics, logs,
-preferences and game files are excluded. The SDK ZIP includes headers, example
-sources, the scaffold script and documentation, with no Valve or Qt runtime binaries.
+Tags with a suffix such as `-alpha.1` are prereleases. Publish fixes under a new
+version so each release remains a consistent source-and-binary snapshot.
+
+## Downloads
+
+Each release provides:
+
+- **Windows x64 portable ZIP:** the launcher and bundled add-ons. Extract it
+  outside CS2 and follow the included installation guide.
+- **SDK ZIP:** C headers, example source, the add-on scaffold script, and documentation.
+- **SHA256SUMS.txt:** checksums for the downloads and release metadata.
+- **release.json:** the version, target platform, and source commit.
+
+To prepare these files locally after building:
+
+```powershell
+python scripts/package-release.py --version v0.1.0-alpha.1
+```
+
+The files are written to `dist/release/`. If a release workflow fails, review its
+failed step on the repository's Actions page. A retry can reuse matching uploaded
+files; changed binaries require a new version.

@@ -19,6 +19,7 @@ struct Contribution {
     HA_InteractionFn callback;
     void* user;
 };
+bool valid_table(const std::string& rows, const std::string& headings);
 Contribution copy_contribution(const std::string& owner, uint64_t handle, const HA_ContributionV1& input);
 std::string contribution_json(const Contribution& contribution);
 class Settings {

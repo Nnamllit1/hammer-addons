@@ -9,7 +9,7 @@
 
 namespace fs = std::filesystem;
 constexpr std::array capabilities{HA_CAP_LOGGING, HA_CAP_FACTORY_EVENTS, HA_CAP_UI,
-    HA_CAP_SETTINGS, HA_CAP_MENU_HOOKS, HA_CAP_IMPORTERS, HA_CAP_EDITOR_EVENTS, HA_CAP_LIVE_PANELS, HA_CAP_JOBS, HA_CAP_EDITOR_QUEUE, HA_CAP_TOOL_LOGS, HA_CAP_BUILD_OUTPUT};
+    HA_CAP_SETTINGS, HA_CAP_MENU_HOOKS, HA_CAP_IMPORTERS, HA_CAP_EDITOR_EVENTS, HA_CAP_LIVE_PANELS, HA_CAP_JOBS, HA_CAP_EDITOR_QUEUE, HA_CAP_TOOL_LOGS, HA_CAP_BUILD_OUTPUT, HA_CAP_PROJECT_CONTEXT, HA_CAP_TABLES};
 static_assert([] {
     uint64_t seen = 0;
     for (auto bit : capabilities) {
@@ -60,6 +60,33 @@ int wmain(int argc, wchar_t** argv) {
         const fs::path root = argv[1];
         TemporaryDirectory temp{root / "build/tests" / ("runtime-" + std::to_string(GetCurrentProcessId()) + "-" + std::to_string(GetTickCount64()))};
         check(fs::create_directories(temp.path), "fresh temporary directory");
+        const auto install=temp.path/L"Fake CS2";
+        const auto projectExecutable=install/L"game/bin/win64/cs2.exe";
+        const auto content=install/L"content/csgo_addons/example";
+        fs::create_directories(projectExecutable.parent_path());std::ofstream(projectExecutable)<<"fixture";
+        fs::create_directories(content/L"materials");fs::create_directories(install/L"game/csgo_addons/example");
+        std::ofstream(content/L"materials/test.vmat")<<"fixture source";
+        ha::Project project;
+        check(!project.initialize(projectExecutable,{L"-addon",L"example",L"-tools"}),"normal secure session has no project provider");
+        check(!project.initialize(projectExecutable,{L"-addon",L"..",L"-tools",L"-insecure"}),"project traversal rejected");
+        check(!project.initialize(projectExecutable,{L"-addon",L"example",L"-addon",L"example",L"-tools",L"-insecure"}),"duplicate project arguments rejected");
+        check(project.initialize(projectExecutable,{L"-tools",L"-insecure",L"-addon",L"example"}),"verified project initialized");
+        check(project.current() && std::string(project.current()->addon_id)=="example","project ID preserved");
+        check(!project.initialize(projectExecutable,{L"-tools",L"-insecure",L"-addon",L"example"}),"borrowed context immutable");
+        char tiny[2]={'x',0};const auto required=project.source("materials/test.vmat",tiny,sizeof(tiny));
+        check(required>sizeof(tiny) && tiny[0]=='x',"short path buffer unchanged");
+        std::vector<char> path(required);check(project.source("materials/test.vmat",path.data(),path.size())==required,"source path copied");
+        for(const char* invalid:{"../secret","materials/../test.vmat","C:/secret","/secret","materials/test.vmat:stream","materials/CON.vmat","materials/test.vmat.","missing.vmat"})
+            check(!project.source(invalid,nullptr,0),"invalid or unresolved source rejected");
+        HA_ExtensionsV1 legacy{};legacy.size=offsetof(HA_ExtensionsV1,project);legacy.version=1;
+        HA_HostV1 oldHost{};oldHost.size=sizeof(oldHost);oldHost.abi_version=1;oldHost.extensions=&legacy;
+        check(!HA_GetProject(&oldHost),"older hosts do not expose appended project API");
+        check(ha::valid_table("first\tError\tMissing material\n", "Level\tMessage"),"valid table rows");
+        check(!ha::valid_table("same\tone\nsame\ttwo", "Message"),"duplicate table IDs rejected");
+        check(!ha::valid_table("first\tone\ttwo", "Message"),"mismatched table columns rejected");
+        check(!ha::valid_table("../row\tone", "Message"),"invalid table IDs rejected");
+        std::string tooMany;for(int i=0;i<65;++i)tooMany+="row_"+std::to_string(i)+"\tvalue\n";
+        check(!ha::valid_table(tooMany,"Message"),"table row bound enforced");
         ha::Settings settings(temp.path / "settings");
         check(settings.set("sample", "name", "before"), "initial write");
         const auto folder = temp.path / "settings/sample";

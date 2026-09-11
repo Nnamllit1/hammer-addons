@@ -22,6 +22,8 @@ extern "C" {
 #define HA_TEXT 3u
 #define HA_CHECKBOX 4u
 #define HA_CHOICE 5u
+#define HA_CAP_TABLES UINT64_C(8192)
+#define HA_TABLE 7u /* Read-only rows: id<TAB>cell...<NEWLINE>; options are tab-separated headings. */
 #define HA_TEXT_VIEW 6u /* Read-only multiline text, updated with HA_SetPanelText. */
 #define HA_CONTINUE 0
 #define HA_HANDLED 1
@@ -72,6 +74,7 @@ typedef struct HA_ContributionV1 {
 } HA_ContributionV1;
 struct HA_JobsV1;
 struct HA_LogsV1;
+struct HA_ProjectV1;
 typedef struct HA_ExtensionsV1 {
     uint32_t size, version;
     /* Register during on_load only. Definitions/strings are copied.
@@ -84,6 +87,7 @@ typedef struct HA_ExtensionsV1 {
     int (HA_CALL *set_panel_text)(void* context,uint64_t panel,const char* control,const char* value);
     const struct HA_JobsV1* jobs;
     const struct HA_LogsV1* logs;
+    const struct HA_ProjectV1* project;
 } HA_ExtensionsV1;
 /* Safe against an older host with only the original ABI-1 prefix. */
 static inline const HA_ExtensionsV1* HA_GetExtensions(const HA_HostV1* host) {

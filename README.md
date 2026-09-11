@@ -13,13 +13,16 @@ This is an unofficial project, independent of Valve.
 
 ## Included tools
 
-- **Build log report:** build a map normally in Hammer; diagnostic candidates update
-  automatically from its build dialog. No log-file selection is required. Saved
-  text logs can also be inspected with background scanning and cancellation.
+- **Build log report:** automatically group build diagnostics, inspect suggested checks,
+  copy asset paths, and reveal project-local sources. Session history compares new
+  and resolved diagnostic messages between complete captured builds. Saved text logs
+  can also be inspected with background scanning and cancellation.
+- **Project context:** view the selected project's folders and find project-local
+  source files without configuring paths.
 - **Live tool output:** an example of the native log subscription API. Its native
   provider is currently disabled while a live-session stability issue is investigated.
 
-Both are included in the portable package under **Workshop Add-ons** (under Help
+These tools are included in the portable package under **Workshop Add-ons** (under Help
 in Hammer). See [build-output capture and SDK](docs/BUILD_OUTPUT.md) and
 [native logging status](docs/TOOL_LOGS.md).
 
@@ -112,13 +115,16 @@ capability need to be adapted.
 
 Use `--template commands`, `--template panel_settings`, `--template menu_hooks`,
 `--template note_import`, `--template picker_notes`, `--template editor_watch` or
-`--template live_status`, `--template compile_report` or `--template tool_console` to start from a feature example. Each SDK feature has
+`--template live_status`, `--template compile_report`, `--template project_context` or `--template tool_console` to start from a feature example. Each SDK feature has
 [a corresponding example add-on](docs/EXTENSIONS.md#examples).
 
 Add-ons can observe session/window identity, reported document paths and window
 metadata changes, and update read-only panel text. See [editor observations and
 live panels](docs/EDITOR_CONTEXT.md), including their limits. These observations
 do not expose map objects, unsaved scene operations or save events.
+
+See [project context and source lookup](docs/PROJECT_CONTEXT.md) for project-aware
+add-ons. [Panel tables](docs/EXTENSIONS.md#tables) provide selectable read-only rows.
 
 See [background jobs and queued callbacks](docs/JOBS.md) for worker lifecycle,
 threading and cancellation contracts.

@@ -27,7 +27,7 @@ static inline const HA_EditorStateV1* HA_GetEditorState(const HA_InteractionV1* 
        !event->editor || event->editor->size < sizeof(HA_EditorStateV1)) return NULL;
     return event->editor;
 }
-/* Updates only this add-on's HA_LABEL/HA_TEXT_VIEW controls (UTF-8, <=4096 bytes).
+/* Updates only this add-on's HA_LABEL/HA_TEXT_VIEW/HA_TABLE controls (UTF-8, <=4096 bytes).
    Returns 1 on success, 0 for unsupported hosts, wrong ownership/type or busy state.
    Callbacks may update their own panel; UI changes appear on the next refresh. */
 static inline int HA_SetPanelText(const HA_HostV1* host,uint64_t panel,const char* control,const char* value) {

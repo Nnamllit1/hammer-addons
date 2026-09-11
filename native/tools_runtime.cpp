@@ -57,6 +57,16 @@ extern "C" __declspec(dllexport) DWORD WINAPI HA_StartTools(void*) noexcept {
         if(!ha::plain_path(root)) return 4;
         // This entry point does not intercept Valve's factory, so do not advertise observations.
         runtime=new ha::Runtime(root,{},false,picker_session ? "project_picker" : "tools");
+        if(!picker_session) {
+            wchar_t executable[32768]{};int count=0;
+            auto** args=CommandLineToArgvW(GetCommandLineW(),&count);
+            if(args) {
+                std::vector<std::wstring> values;
+                for(int i=1;i<count;++i)values.emplace_back(args[i]);
+                LocalFree(args);
+                if(GetModuleFileNameW(nullptr,executable,32768))runtime->initialize_project(executable,values);
+            }
+        }
         runtime->log(picker_session ? "Starting launcher-owned Workshop project picker" : "Starting launcher-owned insecure Workshop Tools session");
         for(unsigned attempt=0;attempt<120;++attempt) {
             if((picker_session || GetModuleHandleW(L"assetbrowser.dll")) && GetModuleHandleW(L"Qt5Widgets.dll")) {

@@ -102,7 +102,7 @@ verified original for the recorded module. Steam updates require re-inspection.
 
 The framework roadmap is:
 1. Improve the shared manager and add-on diagnostics.
-2. Extend the UI API with dynamic control updates and asynchronous jobs.
+2. Extend the existing dynamic controls, read-only tables and asynchronous jobs.
 3. Add dependency, capability and version negotiation.
 4. Validate editor adapters for document/selection operations and native
    undoable transactions.
@@ -134,8 +134,19 @@ This stream is coalesced metadata, not a lossless document or edit log.
 
 HA_InteractionV1 and HA_ExtensionsV1 retain their prior prefixes. Size-checked
 helpers expose the appended editor-state pointer and panel text setter. The setter
-can only change this add-on's labels/read-only views; updates flow through the
+can only change this add-on's labels, read-only views and table rows; updates flow through the
 existing status snapshot into Qt, without emitting user-input callbacks.
+
+Selectable tables use stable row IDs. The runtime validates their shape and
+rejects callbacks for removed rows; the UI preserves selection across refreshed
+snapshots without emitting a second user-input callback.
+
+The appended project API captures the selected add-on and its content/game roots
+from the launcher-owned tools process before add-ons load. It exposes immutable
+UTF-8 metadata and bounded source-path lookup. Lookup rejects traversal, device
+names and reparse points; it only resolves existing loose files within the selected
+project. It does not resolve mounted packages or expose unsaved document objects.
+See [project context](PROJECT_CONTEXT.md) for the public contract.
 
 
 ## Jobs and tool logging

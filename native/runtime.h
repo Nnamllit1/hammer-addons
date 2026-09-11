@@ -5,6 +5,7 @@
 #include "hammer_build.h"
 #include "jobs.h"
 #include "tool_logs.h"
+#include "project.h"
 #include <windows.h>
 #include <filesystem>
 #include <memory>
@@ -19,6 +20,7 @@ class Runtime {
 public:
     explicit Runtime(std::filesystem::path root, std::filesystem::path settings_root = {}, bool factory_events = true, std::string process_scope = {});
     Summary start();
+    bool initialize_project(const std::filesystem::path&,const std::vector<std::wstring>&);
     void event(const char* name, const char* value);
     void shutdown();
     void pump_jobs() noexcept;
@@ -37,6 +39,7 @@ private:
     Settings settings_;
     Jobs jobs_;
     ToolLogs tool_logs_;
+    Project project_;
     uint64_t next_subscription_ = 1;
     DWORD editor_thread_ = 0;
     uint64_t next_handle_ = 1;
@@ -58,6 +61,8 @@ private:
     static size_t HA_CALL get_setting(void*, const char*, char*, size_t);
     static int HA_CALL set_setting(void*, const char*, const char*);
     static int HA_CALL set_panel_text(void*,uint64_t,const char*,const char*);
+    static const HA_ProjectInfoV1* HA_CALL current_project(void*) noexcept;
+    static size_t HA_CALL source_path(void*,const char*,char*,size_t) noexcept;
     static int HA_CALL logs_available(void*) noexcept;
     static uint64_t HA_CALL subscribe_logs(void*,HA_LogCallbackFn,uint32_t) noexcept;
     static int HA_CALL unsubscribe_logs(void*,uint64_t) noexcept;

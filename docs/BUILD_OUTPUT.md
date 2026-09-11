@@ -5,11 +5,30 @@ Hammer's existing build-output control automatically. Open the report from
 **Help > Workshop Add-ons > Build log report**. No file picker, compiler wrapper,
 extra process or native logging listener is required.
 
-The example highlights lines containing warning/error/failure keywords. These
-are diagnostic candidates, including potentially harmless phrases like "0 errors".
-It does not infer compiler exit status or fixes. The panel shows the latest updated
-source; it is not a multi-build history. A new live update cancels an optional
-saved-file scan so an old worker cannot overwrite the live report.
+The report groups repeated diagnostic messages and shows their first line and
+occurrence count. Select a Problems row to see the original message and suggested
+checks. **Copy asset path / diagnostic** copies the selected asset path, or the
+message if it has no asset. **Reveal project source** selects an existing source
+file in Explorer; it does not open or execute the file. Compiled `_c` resource
+names are tried as their corresponding source names within the selected project.
+Unresolved sources may be packaged or outside the project.
+
+Recognized zero counts such as `0 failed` do not become problems. The compiler's
+reported result is shown separately when its summary and Hammer's end marker are
+captured. Unknown wording remains a diagnostic candidate, with the original text
+available for context. Recognized missing-resource and sound-operator messages
+include suggested checks; they do not establish the root cause.
+
+**Build history** retains the latest eight captured builds in this session. It
+compares distinct diagnostic messages for the same editor window and build-dialog
+title when both captures include start/end markers and a compiler summary, without
+truncation or omitted diagnostics. Partial captures do not report problems as
+resolved. History is cleared when the tools process exits.
+
+The report follows the latest updated source. A new live update cancels an optional
+saved-file scan so its worker cannot overwrite the live report. The Problems table
+and history describe live Hammer output; saved-file inspection produces a separate
+text summary.
 
 ## SDK
 
@@ -52,6 +71,8 @@ bytes), preserves surrogate boundaries, and normalizes Qt paragraph separators t
 newlines. Long-output line numbers in the example refer to this retained tail.
 
 This is the text Hammer displays, not lossless stdout/stderr capture. Transient
-text cleared between polls can be missed. Compiler stdin, exit codes, build-start
-and build-finish semantics are not exposed. The adapter never changes the document,
+text cleared between polls can be missed. Compiler stdin and process exit codes
+are not exposed. The report recognizes
+Hammer's textual start/end markers and compiler summaries; these are observations,
+not authoritative process-lifecycle events. The adapter never changes the document,
 starts a compiler, selects a project, or writes a log file.

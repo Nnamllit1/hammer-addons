@@ -148,14 +148,15 @@ Summary Runtime::start() {
             if (!query) throw std::runtime_error("HA_Query export missing");
             current->api = query(HA_ABI_VERSION);
             const auto* api = current->api;
-            const uint64_t capabilities = HA_CAP_LOGGING | (factory_events_ ? HA_CAP_FACTORY_EVENTS : 0) | HA_CAP_UI | HA_CAP_SETTINGS | HA_CAP_MENU_HOOKS | HA_CAP_IMPORTERS | HA_CAP_EDITOR_EVENTS | HA_CAP_LIVE_PANELS | HA_CAP_JOBS | HA_CAP_EDITOR_QUEUE | HA_CAP_TOOL_LOGS | HA_CAP_BUILD_OUTPUT;
+            const uint64_t capabilities = HA_CAP_LOGGING | (factory_events_ ? HA_CAP_FACTORY_EVENTS : 0) | HA_CAP_UI | HA_CAP_SETTINGS | HA_CAP_MENU_HOOKS | HA_CAP_IMPORTERS | HA_CAP_EDITOR_EVENTS | HA_CAP_LIVE_PANELS | HA_CAP_JOBS | HA_CAP_EDITOR_QUEUE | HA_CAP_TOOL_LOGS | HA_CAP_BUILD_OUTPUT | HA_CAP_PROJECT_CONTEXT | HA_CAP_TABLES;
             if (!api || api->size < sizeof(HA_AddonV1) || api->abi_version != HA_ABI_VERSION ||
                 !api->id || current->id != api->id || !api->on_load || (api->required_capabilities & ~capabilities))
                 throw std::runtime_error("add-on ABI, ID or required capabilities do not match");
+            static const HA_ProjectV1 project_api{sizeof(HA_ProjectV1),1,current_project,source_path};
             static const HA_LogsV1 log_api{sizeof(HA_LogsV1),1,logs_available,subscribe_logs,unsubscribe_logs};
             static const HA_JobsV1 job_api{sizeof(HA_JobsV1),1,submit_job,cancel_job,post_editor};
             static const HA_ExtensionsV1 extension_api{sizeof(HA_ExtensionsV1), HA_EXTENSIONS_VERSION,
-                register_contribution, get_setting, set_setting, set_panel_text, &job_api, &log_api};
+                register_contribution, get_setting, set_setting, set_panel_text, &job_api, &log_api, &project_api};
             current->host = {sizeof(HA_HostV1), HA_ABI_VERSION, capabilities, current, addon_log, current->directory.c_str(), &extension_api};
             current->registering = true;
             int loaded = 0;
@@ -269,7 +270,8 @@ int HA_CALL Runtime::set_panel_text(void* context,uint64_t panel,const char* con
         if(!lock.owns_lock() || (!addon->active && !addon->registering) || !control || !value ||
            strnlen_s(control,65)>64 || strnlen_s(value,4097)>4096) return 0;
         for(auto& c:addon->contributions) if(c.handle==panel && c.kind==HA_PANEL)
-            for(auto& v:c.controls) if(v.id==control && (v.kind==HA_LABEL || v.kind==HA_TEXT_VIEW)) {
+            for(auto& v:c.controls) if(v.id==control && (v.kind==HA_LABEL || v.kind==HA_TEXT_VIEW || v.kind==HA_TABLE)) {
+                if(v.kind==HA_TABLE && !valid_table(value,v.options))return 0;
                 v.value=value;return 1;
             }
     } catch(...) {}
@@ -302,6 +304,14 @@ int Runtime::invoke(uint64_t handle, const char* tool, const char* phase, const 
                 const auto found = std::find_if(c.controls.begin(),c.controls.end(),[&](const Control& v) { return v.id == control; });
                 if (found == c.controls.end() || (found->kind == HA_LABEL || found->kind == HA_TEXT_VIEW) ||
                     (event_phase == "panel.click") != (found->kind == HA_BUTTON)) return HA_ERROR;
+            }
+            if(c.kind==HA_PANEL) {
+                for(const auto& v:c.controls)if(v.id==control && v.kind==HA_TABLE) {
+                    // Ignore selections from a stale UI snapshot after a row's removal.
+                    if(event_phase!="panel.change" || !*value || strnlen_s(value,65)>64)return HA_ERROR;
+                    const std::string key=std::string(value)+"\t";
+                    if(!v.value.starts_with(key) && v.value.find("\n"+key)==std::string::npos)return HA_ERROR;
+                }
             }
             if (c.kind == HA_IMPORTER || c.kind == HA_IMPORT_ROUTE) {
                 const auto file = fs::path(std::u8string(reinterpret_cast<const char8_t*>(value)));
@@ -423,5 +433,19 @@ int HA_CALL Runtime::unsubscribe_logs(void* context,uint64_t id) noexcept {
         std::unique_lock lock(a->owner->callbacks_,std::try_to_lock);if(!lock.owns_lock())return 0;
         return std::erase_if(a->logs,[&](const auto& s){return s.id==id;})!=0;
     }catch(...){return 0;}
+}
+}
+
+namespace ha {
+bool Runtime::initialize_project(const fs::path& executable,const std::vector<std::wstring>& args) {
+    return !started_ && project_.initialize(executable,args);
+}
+const HA_ProjectInfoV1* HA_CALL Runtime::current_project(void* context) noexcept {
+    auto* addon=static_cast<Addon*>(context);
+    return addon ? addon->owner->project_.current() : nullptr;
+}
+size_t HA_CALL Runtime::source_path(void* context,const char* path,char* output,size_t capacity) noexcept {
+    auto* addon=static_cast<Addon*>(context);
+    return addon ? addon->owner->project_.source(path,output,capacity) : 0;
 }
 }

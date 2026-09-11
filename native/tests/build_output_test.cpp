@@ -11,6 +11,9 @@
 #include <QTemporaryDir>
 #include <QElapsedTimer>
 #include <QThread>
+#include <QTreeWidget>
+#include <QPlainTextEdit>
+#include <QAction>
 #include <fstream>
 #include <iostream>
 // Public Qt metaobject identities matching the live, inspected widget pair.
@@ -49,7 +52,25 @@ int main(int argc,char** argv){
         fs::path package=temp.path().toStdWString();auto folder=package/"addons/compile_report";fs::create_directories(folder);
         fs::copy_file(fs::path(QCoreApplication::applicationDirPath().toStdWString())/"compile_report.dll",folder/"compile_report.dll");
         fs::copy_file(root/"addons/compile_report/addon.ini",folder/"addon.ini");
-        ha::Runtime owned(package,package/"settings",false,"tools");runtime=&owned;check(owned.start().loaded==1,"real example loads");
+        const auto projectFolder=package/"addons/project_context";fs::create_directories(projectFolder);
+        fs::copy_file(fs::path(QCoreApplication::applicationDirPath().toStdWString())/"project_context.dll",projectFolder/"project_context.dll");
+        fs::copy_file(root/"addons/project_context/addon.ini",projectFolder/"addon.ini");
+        const auto install=package/"Fake CS2", executable=install/"game/bin/win64/cs2.exe";
+        const auto source=install/"content/csgo_addons/test/materials/test.vmat";
+        fs::create_directories(executable.parent_path());std::ofstream(executable)<<"fixture";
+        fs::create_directories(source.parent_path());std::ofstream(source)<<"material";
+        fs::create_directories(install/"game/csgo_addons/test");
+        ha::Runtime owned(package,package/"settings",false,"tools");runtime=&owned;
+        check(owned.initialize_project(executable,{L"-tools",L"-insecure",L"-addon",L"test"}),"runtime project initialization");
+        check(owned.start().loaded==2,"real examples load");
+        uint64_t contextPanel=0;
+        for(const auto& v:QJsonDocument::fromJson(QByteArray::fromStdString(owned.status_json())).object()["contributions"].toArray()) {
+            if(v.toObject()["owner"]=="project_context")contextPanel=static_cast<uint64_t>(v.toObject()["handle"].toDouble());
+        }
+        check(contextPanel && owned.status_json().find("Project: test")!=std::string::npos,"project context reaches example");
+        check(owned.invoke(contextPanel,"hammer","panel.change","path","materials/test.vmat",nullptr,0)==HA_HANDLED,"project source input");
+        check(owned.invoke(contextPanel,"hammer","panel.click","lookup","",nullptr,0)==HA_HANDLED,"source lookup through public API");
+        check(owned.status_json().find("test.vmat")!=std::string::npos,"resolved source appears in example panel");
         HA_InteractionV1 old{};old.size=offsetof(HA_InteractionV1,build);check(!HA_GetBuildOutput(&old),"old interaction is accepted without appended build field");
         uint64_t observer=0;
         for(const auto& v:QJsonDocument::fromJson(QByteArray::fromStdString(owned.status_json())).object()["contributions"].toArray())
@@ -66,11 +87,23 @@ int main(int argc,char** argv){
         auto* dialog=new CQBuildMapDialog(&hammer);dialog->setWindowTitle("Build Map disposable.vmap");
         auto* text=new CQAutoScrollingTextEdit(dialog);text->setPlainText("Start build\nwarning fixture\nerror fixture");
         pump();check(events.size()==1 && report().find("2 diagnostic candidates")!=std::string::npos,"automatic capture reaches real report without file selection");
+        auto* panelAction=hammer.findChild<QAction*>("HA.Action.compile_report.report");check(panelAction,"report panel action");
+        panelAction->trigger();pump();
+        auto* table=hammer.findChild<QTreeWidget*>("HA.Control.problems");check(table && table->topLevelItemCount()==2,"Problems table populated");
+        table->setCurrentItem(table->topLevelItem(1));pump();
+        auto* details=hammer.findChild<QPlainTextEdit*>("HA.Control.details");check(details && details->toPlainText().contains("error fixture"),"selecting row delivers typed identity and details");
+        const auto stableKey=table->currentItem()->data(0,Qt::UserRole).toString();
+        text->append("warning fixture");pump();
+        check(table->topLevelItemCount()==2 && table->currentItem()->data(0,Qt::UserRole).toString()==stableKey,"refresh preserves selected row and groups repetitions");
         const auto id=events.back().id;const auto sequence=events.back().sequence;
-        pump();check(events.size()==1,"unchanged output not repeated");
+        const auto unchanged=events.size();pump();check(events.size()==unchanged,"unchanged output not repeated");
         text->append(QString::fromUtf8("warning Gr\xc3\xb6\xc3\x9f"));pump(200);
         check(events.back().id==id && events.back().sequence>sequence && events.back().text.find("Gr\xc3\xb6\xc3\x9f")!=std::string::npos,"ordered UTF-8 updates");
-        text->clear();pump(200);check(events.back().text.empty() && report().find("0 diagnostic candidates")!=std::string::npos,"clear replaces old findings");
+        text->clear();pump();check(table->topLevelItemCount()==0,"table clears with output");
+        uint64_t reportPanel=0;
+        for(const auto& v:QJsonDocument::fromJson(QByteArray::fromStdString(owned.status_json())).object()["contributions"].toArray())
+            if(v.toObject()["owner"]=="compile_report" && v.toObject()["id"]=="report")reportPanel=static_cast<uint64_t>(v.toObject()["handle"].toDouble());
+        check(owned.invoke(reportPanel,"hammer","panel.change","problems",stableKey.toUtf8().constData(),nullptr,0)==HA_ERROR,"stale removed row rejected");check(events.back().text.empty() && report().find("0 diagnostic candidates")!=std::string::npos,"clear replaces old findings");
         text->setPlainText(QString(40000,'x')+"\nwarning tail");pump(200);
         check(events.back().flags==HA_BUILD_TRUNCATED && events.back().text.size()<=131072 && report().find("earlier text was omitted")!=std::string::npos,"bounded tail and explicit truncation");
         busy=true;text->setPlainText("warning delayed");const auto count=events.size();pump(200);check(events.size()==count,"busy observer deferred");

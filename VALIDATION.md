@@ -330,8 +330,9 @@ Hammer generated the test project's compiled VPK through its normal build flow.
 The build dialog's `CQAutoScrollingTextEdit` was identified through accessibility.
 Reading the real Build log report dock subsequently confirmed **91 displayed
 lines and 4 diagnostic candidates**, including the same missing-resource messages
-and the compiler summary. The report explicitly treats `0 failed` as a potentially
-harmless keyword match. Capture required no log-file selection or external log.
+and the compiler summary. The alpha.1 parser included `0 failed` as a keyword
+match; alpha.2 excludes recognized zero counts from diagnostics. Capture required
+no log-file selection or external log.
 
 The experimental native logger remains disabled in production. Earlier tests
 reported ntdll heap corruption (0xc0000374); a later picker exit also recorded it
@@ -339,3 +340,18 @@ with both native logging and the temporary probe disabled. The cause remains
 unresolved; this compiler-capture test does not establish general picker stability.
 The live Hammer process remained responsive through compilation and report reading.
 The temporary compiler_probe add-on was removed from the portable directory.
+
+## Project context and actionable diagnostics (alpha.2)
+
+`build.bat -Test` passes with the project context and selectable-table SDK
+extensions. Runtime tests cover older ABI prefixes, unique capability bits,
+project-path validation and bounded source lookup. Diagnostic tests cover zero
+counts, repeated messages, resource hints, bounded input, incomplete capture and
+history comparisons restricted to the same window and map title.
+
+The Qt build-output fixture loads the real compile_report and project_context
+DLLs. It verifies automatic report updates, source lookup, row selection,
+selection preservation during refresh and stale-row rejection after a clear.
+The launcher suite, scaffold builds and all 35 native loader scenarios pass.
+Clipboard and Explorer actions have not received a live desktop interaction
+test. These fixture results do not resolve the picker crash described above.

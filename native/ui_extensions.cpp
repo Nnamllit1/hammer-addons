@@ -3,6 +3,9 @@
 #include "hammer_editor.h"
 #include "ui_build_output.h"
 #include <QPlainTextEdit>
+#include <QTreeWidget>
+#include <QScrollArea>
+#include <QHeaderView>
 #include <QUuid>
 #include <QAction>
 #include <QCheckBox>
@@ -60,6 +63,19 @@ Target locate(QMainWindow* window, const QString& path, bool leaf) {
         actions = parent->actions();
     }
     return {parent,nullptr};
+}
+void update_table(QTreeWidget* table,const QString& rows) {
+    if(table->property("ha_rows").toString()==rows)return;
+    const QSignalBlocker blocker(table);
+    const QString selected=table->currentItem()?table->currentItem()->data(0,Qt::UserRole).toString():QString();
+    table->clear();
+    for(const auto& line:rows.split('\n',Qt::SkipEmptyParts)) {
+        auto cells=line.split('\t');const auto key=cells.takeFirst();
+        auto* item=new QTreeWidgetItem(table,cells);item->setData(0,Qt::UserRole,key);
+        for(int i=0;i<cells.size();++i)item->setToolTip(i,cells[i]);
+        if(key==selected)table->setCurrentItem(item);
+    }
+    table->setProperty("ha_rows",rows);
 }
 class Controller;
 class Hook final : public QObject {
@@ -212,6 +228,18 @@ public:
                 auto* button = new QPushButton(label,body); form->addRow(button); widget=button;
                 connect(button,&QPushButton::clicked,this,[this,c,id] { invoke(c,"panel.click",id); }); break;
             }
+            case HA_TABLE: {
+                auto* table=new QTreeWidget(body);table->setRootIsDecorated(false);
+                table->setHeaderLabels(control["options"].toString().split('\t'));
+                table->setSelectionMode(QAbstractItemView::SingleSelection);
+                table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+                table->header()->setSectionResizeMode(QHeaderView::ResizeToContents);
+                table->header()->setStretchLastSection(true);table->setMinimumHeight(140);
+                update_table(table,initial);form->addRow(label,table);widget=table;
+                connect(table,&QTreeWidget::currentItemChanged,this,[this,c,id](QTreeWidgetItem* row,QTreeWidgetItem*) {
+                    if(row)invoke(c,"panel.change",id,row->data(0,Qt::UserRole).toString());
+                });break;
+            }
             case HA_TEXT_VIEW: {
                 auto* text=new QPlainTextEdit(initial,body);text->setReadOnly(true);
                 text->setMinimumHeight(140);form->addRow(label,text);widget=text;break;
@@ -233,7 +261,8 @@ public:
             }
             if (widget) widget->setObjectName("HA.Control."+id);
         }
-        dock->setWidget(body);
+        auto* scroll=new QScrollArea(dock);scroll->setWidgetResizable(true);scroll->setWidget(body);
+        dock->setWidget(scroll);
         window->addDockWidget(Qt::RightDockWidgetArea,dock);
         dock->hide(); // Add-on UI is opened explicitly, never forced over the user's editor.
         connect(action,&QAction::triggered,dock,[dock] { dock->show(); dock->raise(); });
@@ -290,7 +319,9 @@ public:
                 if (bindings[key].action) {
                     if(auto* dock=bindings[key].dock.data()) for(const auto& item:c["controls"].toArray()) {
                         const auto v=item.toObject();const auto object="HA.Control."+v["id"].toString();
-                        if(v["kind"].toInt()==HA_TEXT_VIEW) {
+                        if(v["kind"].toInt()==HA_TABLE) {
+                            if(auto* table=dock->findChild<QTreeWidget*>(object))update_table(table,v["value"].toString());
+                        } else if(v["kind"].toInt()==HA_TEXT_VIEW) {
                             auto* view=dock->findChild<QPlainTextEdit*>(object);
                             if(view && view->toPlainText()!=v["value"].toString())view->setPlainText(v["value"].toString());
                         } else if(v["kind"].toInt()==HA_LABEL) {

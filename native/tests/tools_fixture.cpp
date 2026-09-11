@@ -27,7 +27,7 @@ int main(int argc,char** argv) {
                     return QString{};
                 };
                 if(state("hello")=="Loaded" && state("compile_report")=="Loaded" &&
-                   state("tool_console")=="Loaded" && state("requires_factory")=="Failed") {
+                   state("tool_console")=="Loaded" && state("project_context")=="Loaded" && state("requires_factory")=="Failed") {
                     timer.stop();QTimer::singleShot(1500,&app,[&app]{app.exit(0);});
                 }
             }

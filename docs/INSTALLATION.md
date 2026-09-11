@@ -59,6 +59,9 @@ Hammer Addons/
     compile_report/
       addon.ini
       compile_report.dll
+    project_context/
+      addon.ini
+      project_context.dll
     tool_console/
       addon.ini
       tool_console.dll
@@ -92,8 +95,10 @@ In Hammer, open **Help > Workshop Add-ons > Build log report**, then build
 normally with **F9**. The report automatically follows the text displayed in
 Hammer's build dialog. You do not need to locate or select a compiler log.
 
-The report shows keyword matches, not a guarantee that a build succeeded or
-failed. Long output is limited to a recent tail, with an explicit notice when
+Select a Problems row for an explanation, to copy its asset path, or to reveal
+a project-local source in Explorer. Repeated messages are grouped, and zero failure
+counts are excluded. Build history compares complete captured builds in this session.
+The reported compiler result and diagnostic candidates are shown separately. Long output is limited to a recent tail, with an explicit notice when
 older text is omitted. Hammer's original output stays available for full context.
 If no output appears, check that Hammer's build dialog is open and has output.
 See [capture limits](BUILD_OUTPUT.md).
@@ -101,6 +106,9 @@ See [capture limits](BUILD_OUTPUT.md).
 For an existing saved log, **Inspect build log...** optionally accepts a `.log`
 or plain-text `.txt` file. That scan runs in the background and can be cancelled.
 New live Hammer output takes precedence over a saved-file scan.
+
+**Workshop Add-ons > Project context** shows the selected project folders and
+provides source-file lookup. See [project context](PROJECT_CONTEXT.md).
 
 The separate **Live tool output** example currently reports unavailable: its
 native provider is disabled pending stability verification. This does not affect
@@ -114,7 +122,7 @@ to manage picker add-ons. The bundled hello example runs in the editor, so an
 empty picker add-on list is normal until you install a picker-compatible add-on.
 
 In Asset Browser, look for the **Workshop Add-ons** manager. The **Add-ons** tab
-should list **hello**, **compile_report**, and **tool_console** as loaded. This confirms that the
+should list **hello**, **compile_report**, **project_context**, and **tool_console** as loaded. This confirms that the
 loader is running; you do not need to read a log file.
 
 In Hammer, open **Help > Workshop Add-ons** to show the manager.
@@ -181,6 +189,9 @@ Hammer Addons/
     compile_report/
       addon.ini
       compile_report.dll
+    project_context/
+      addon.ini
+      project_context.dll
     tool_console/
       addon.ini
       tool_console.dll

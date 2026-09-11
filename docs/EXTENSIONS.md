@@ -16,6 +16,7 @@ Every public SDK feature has an example:
 | [live_status](../addons/live_status/live_status.cpp) | Programmatic label updates without overwriting editable inputs |
 | [compile_report](../addons/compile_report/compile_report.cpp) | Automatic Hammer build-output observation; optional saved-log background jobs, cancellation and queued callbacks |
 | [tool_console](../addons/tool_console/tool_console.cpp) | Live native tool output, severity filters and subscriptions |
+| [project_context](../addons/project_context/project_context.cpp) | Verified project folders and project-local source lookup |
 | [hello](../addons/hello/hello.cpp) | Loading, logging, shutdown; factory observations on the legacy proxy |
 | [commands](../addons/commands/commands.cpp) | Menu command, shortcut, tool scope, callback feedback |
 | [picker_notes](../addons/picker_notes/picker_notes.cpp) | Project-picker opt-in, panel and persistent reminder |
@@ -25,7 +26,7 @@ Every public SDK feature has an example:
 
 Builds put optional example DLLs in `dist/examples/addons/`. Copy selected example
 folders into the portable package's `addons/` directory and restart Workshop
-Tools. `hello`, `compile_report` and `tool_console` are installed by default. Example source is also packaged.
+Tools. `hello`, `compile_report`, `project_context` and `tool_console` are installed by default. Example source is also packaged.
 
 Generate an independently buildable project:
 
@@ -37,7 +38,7 @@ cmake --install ../my_panel/build --config Release --prefix ../my_panel/package
 ```
 
 Templates are `hello`, `commands`, `panel_settings`, `menu_hooks` and
-`note_import`, `picker_notes`, `editor_watch`, `live_status`, `compile_report` and `tool_console`. `--tools` changes manifest tool tags. Change each
+`note_import`, `picker_notes`, `editor_watch`, `live_status`, `compile_report`, `project_context` and `tool_console`. `--tools` changes manifest tool tags. Change each
 contribution's `tool` and `target` in source to change its UI placement.
 
 ## Registration and ownership
@@ -182,3 +183,22 @@ contract and examples](EDITOR_CONTEXT.md) for delivery, identity and limitations
 `HA_BUILD_OBSERVER` and `HA_CAP_BUILD_OUTPUT`. The `compile_report` example uses
 this automatically. [Native tool logging](TOOL_LOGS.md) is a separate subscription
 API; its production provider is currently disabled pending live stability checks.
+
+
+## Tables
+
+Declare `HA_CAP_TABLES` (8192) and add an `HA_TABLE` control to a panel. Its options
+are tab-separated column headings (up to eight). Each value line is a stable row
+ID followed by tab-separated cells, for example `missing_material\tError\t2\tMissing material`.
+IDs follow contribution-ID syntax and must be unique. Tables allow at most 64 rows
+and the existing 4096-byte panel-value limit. Tabs/newlines are separators, not
+escapable cell content; replace them with spaces in messages before adding rows.
+
+Update rows with `HA_SetPanelText`. Selecting a row emits `panel.change` with the
+control ID and the selected row ID in `event->value`. Selection survives refreshes
+when the same ID remains. Programmatic refreshes do not emit selection callbacks;
+stale selections for removed rows are rejected. Treat row IDs as identifiers,
+not row indices. The `compile_report` example demonstrates a Problems table.
+
+Panels scroll vertically when their controls exceed the available dock space.
+Project-aware extensions can use the [project context API](PROJECT_CONTEXT.md).

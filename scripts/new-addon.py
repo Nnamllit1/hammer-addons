@@ -7,7 +7,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('id')
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--template', choices=['hello', 'commands', 'panel_settings', 'menu_hooks', 'note_import', 'picker_notes', 'editor_watch', 'live_status', 'compile_report', 'tool_console'], default='hello')
+    parser.add_argument('--template', choices=['hello', 'commands', 'panel_settings', 'menu_hooks', 'note_import', 'picker_notes', 'editor_watch', 'live_status', 'compile_report', 'tool_console', 'project_context'], default='hello')
     parser.add_argument('--tools', default=None, help='Comma-separated tool tags (default: selected template)' )
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
@@ -27,6 +27,8 @@ def main():
     args.output.mkdir(parents=True, exist_ok=False)
     (args.output / f'{args.id}.cpp').write_text(sample.replace(f'"{args.template}"', f'"{args.id}"'), encoding='utf-8')
     manifest = manifest.replace(f'id={args.template}', f'id={args.id}').replace(f'entry={args.template}.dll', f'entry={args.id}.dll')
+    for header in source.glob('*.h'):
+        (args.output / header.name).write_bytes(header.read_bytes())
     for fixture in source.glob('*.hanote'):
         (args.output / fixture.name).write_bytes(fixture.read_bytes())
     manifest = re.sub(r'^tools=.*\n?', '', manifest, flags=re.M).rstrip() + '\ntools=' + ','.join(tags) + '\n'
@@ -43,6 +45,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 add_library(ADDON_NAME SHARED ADDON_NAME.cpp)
 target_include_directories(ADDON_NAME PRIVATE "${HAMMER_ADDONS_SDK}/include")
+target_link_libraries(ADDON_NAME PRIVATE user32 shell32 ole32)
 install(TARGETS ADDON_NAME RUNTIME DESTINATION ADDON_NAME)
 install(FILES addon.ini DESTINATION ADDON_NAME)
 '''.replace('ADDON_NAME', args.id))

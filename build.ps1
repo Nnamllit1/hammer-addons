@@ -34,6 +34,8 @@ if (Test-Path -LiteralPath $legacyProxy) { Remove-Item -LiteralPath $legacyProxy
 if ($Test) {
     & python "$PSScriptRoot\scripts\test-release.py"
     if ($LASTEXITCODE) { exit $LASTEXITCODE }
+    & "$PSScriptRoot\build\native\$Configuration\diagnostics_test.exe"
+    if ($LASTEXITCODE) { exit $LASTEXITCODE }
     & "$PSScriptRoot\build\native\$Configuration\runtime_test.exe" $PSScriptRoot
     if ($LASTEXITCODE) { exit $LASTEXITCODE }
     & "$PSScriptRoot\build\native\$Configuration\tool_logs_test.exe"
