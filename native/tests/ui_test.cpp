@@ -1,5 +1,6 @@
 #include "qt_compat.h"
 #include "ui_bridge.h"
+#include "ui_pointer.h"
 #include <QApplication>
 #include <QComboBox>
 #include <QTabWidget>
@@ -33,6 +34,23 @@ static void pump() {
 int main(int argc, char** argv) {
     QApplication app(argc, argv);
     try {
+        // Guards outlive their QObject and may be copied into maps/callbacks.
+        // Releasing them must never free Qt's external weak-reference storage.
+        for(int cycle=0;cycle<100;++cycle) {
+            auto* owner=new QWidget;
+            auto* action=new QAction(owner);
+            ha::UiPointer<QAction> guard(action), independent(action);
+            auto copied=guard;
+            auto moved=std::move(copied);
+            check(!copied && moved.data()==action);
+            { auto temporary=guard; check(temporary.data()==action); }
+            auto* other=new QAction(owner);
+            guard=other;
+            delete action;
+            check(!moved && !independent && guard.data()==other);
+            delete owner;
+            check(!guard);
+        }
         QMainWindow unrelated; unrelated.setWindowTitle("Preferences"); unrelated.show();
         QMainWindow browser; browser.setWindowTitle("Asset Browser"); browser.resize(900, 700); browser.show();
         HA_UiHost host{sizeof(HA_UiHost), nullptr, read_status};

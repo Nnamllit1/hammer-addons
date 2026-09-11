@@ -21,7 +21,7 @@
 #include <QLineEdit>
 #include <QMap>
 #include <QMenuBar>
-#include <QPointer>
+#include "ui_pointer.h"
 #include <QPushButton>
 #include <QStatusBar>
 #include <QSet>
@@ -81,8 +81,8 @@ class Controller;
 class Hook final : public QObject {
 public:
     Controller* owner;
-    QPointer<QMenu> menu;
-    QPointer<QAction> original, proxy;
+    ha::UiPointer<QMenu> menu;
+    ha::UiPointer<QAction> original, proxy;
     QList<QKeySequence> shortcuts;
     QJsonArray definitions;
     bool running = false;
@@ -91,12 +91,12 @@ public:
     void trigger();
 };
 struct Binding {
-    QPointer<QAction> action;
-    QPointer<QDockWidget> dock;
+    ha::UiPointer<QAction> action;
+    ha::UiPointer<QDockWidget> dock;
 };
 class Controller final : public QObject {
 public:
-    QPointer<QMainWindow> window;
+    ha::UiPointer<QMainWindow> window;
     QString tool;
     HA_UiHost host;
     QObject* buildOutput=nullptr;
@@ -192,7 +192,7 @@ public:
         auto* builtin = new QPushButton("Built-in importer",dialog);
         builtin->setObjectName("HA.BuiltinImporter");
         layout->addWidget(builtin);
-        QPointer<Hook> weak(hook);
+        ha::UiPointer<Hook> weak(hook);
         connect(builtin,&QPushButton::clicked,dialog,[dialog,weak] {
             dialog->close();
             if (weak && weak->original && weak->original->isEnabled()) weak->original->trigger();
@@ -400,7 +400,7 @@ void Hook::trigger() {
     running=true;
     // A modal native action may run nested event loops. The adapter defers refresh
     // while this invocation is active so this wrapper remains alive until it returns.
-    QPointer<Hook> self(this);
+    ha::UiPointer<Hook> self(this);
     const auto copied = definitions;
     QJsonArray routes;
     for (const auto& entry:copied) {

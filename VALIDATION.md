@@ -355,3 +355,22 @@ selection preservation during refresh and stale-row rejection after a clear.
 The launcher suite, scaffold builds and all 35 native loader scenarios pass.
 Clipboard and Explorer actions have not received a live desktop interaction
 test. These fixture results do not resolve the picker crash described above.
+
+## Picker shutdown crash (alpha.3)
+
+Closing the real Workshop project picker reproduced `0xc0000374` with native
+logging disabled. A diagnostic build localized the failing free to a `QPointer`
+inside the extension controller's binding cleanup. Replacing the UI DLL's guards
+with `QObject::destroyed` observers and module-owned bookkeeping made the same
+shutdown finish with exit code zero.
+
+Live checks covered opening the manager, floating and closing its dock, closing
+the manager, reopening it with its contents intact, and closing the picker. Three
+additional startup/close cycles with the production Release binaries all exited
+successfully. The native regression suites passed, including 100 pointer-lifetime
+cycles, abnormal picker-exit reporting, the launcher fixtures and all 35 loader
+scenarios. A scaffold build initially encountered local MSBuild file-access
+errors; its rerun with worker reuse disabled passed.
+
+These results address the reproduced UI cleanup crash. The native logging
+provider remains disabled until its own live verification is complete.

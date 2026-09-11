@@ -83,6 +83,12 @@ live verification covers Asset Browser and Hammer.
 
 A private C bridge copies JSON status snapshots; no Qt or STL ownership crosses
 DLL boundaries. Refreshes skip a busy callback lock rather than blocking the UI.
+
+Internal non-owning UI pointers observe `QObject::destroyed` through direct
+signal connections. Their shared bookkeeping is allocated and released by the
+UI DLL. Avoid `QPointer` here: its inline destructor can release a reference-count
+block allocated by Valve's Qt through the framework's CRT, causing heap corruption
+during window teardown. These guards are restricted to the GUI thread.
 Qt runtime DLLs are neither packaged nor replaced. The extension SDK copies registration descriptors during on_load. The UI adapter
 owns per-window commands, docks and menu wrappers; a private C invocation bridge
 dispatches callbacks by handle. No Qt objects cross the public SDK. Missing or

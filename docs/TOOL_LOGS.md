@@ -1,10 +1,10 @@
 # Live tool output
 
 **The native provider is currently disabled in the portable launcher.** Standalone
-DLL tests passed, but live startup tests encountered heap corruption with the
-native listener and/or a temporary diagnostic probe. A later picker crash also
-occurred with both disabled, so the cause is not isolated and is not attributed
-solely to the listener.
+DLL tests passed, but earlier live tests encountered heap corruption. Alpha.3
+fixes a reproduced picker shutdown crash in UI pointer cleanup. That fix does
+not establish the native listener's stability; it remains disabled pending
+separate live verification.
 The `tool_console` example therefore shows unavailable; a matching hash alone
 is not treated as proof of live stability.
 

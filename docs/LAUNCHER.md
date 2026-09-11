@@ -122,6 +122,10 @@ optional users of those observations must check capabilities.
 Extensions tabs show load and binding status. Per-add-on settings retain their
 existing per-user storage.
 
+Closing the project picker normally cancels startup. An abnormal picker exit
+instead reports its hexadecimal exit code as a launch failure; include that
+code when reporting a crash.
+
 The package must be writable for logs. Keep it outside
 CS2 and do not use junction/symlink paths. Steam must already be available for the
 normal CS2 startup flow. If CS2 exits or relaunches into another process, the

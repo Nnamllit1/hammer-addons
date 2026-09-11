@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cstring>
 #include <future>
+#include <sstream>
 namespace fs=std::filesystem;
 namespace {
 struct Handle {
@@ -159,7 +160,19 @@ bool ToolsProcess::wait_for_tools(const fs::path& executable,const fs::path& pic
         const bool cancelled=event.dwDebugEventCode==EXIT_PROCESS_DEBUG_EVENT && event.dwProcessId==pid_;
         if(!ContinueDebugEvent(event.dwProcessId,event.dwThreadId,disposition)) error("Cannot continue Workshop project picker");
         if(otherChild && !DebugActiveProcessStop(event.dwProcessId)) error("Cannot release picker helper process");
-        if(cancelled) { guard.complete=true; if(initialization.valid()) {try{initialization.get();}catch(...){}} return false; }
+        if(cancelled) {
+            guard.complete=true;
+            if(initialization.valid()) {try{initialization.get();}catch(...){}}
+            // A crashed picker is not a successful user cancellation. Preserve its
+            // exit code so both users and launcher regression tests see the failure.
+            if(event.u.ExitProcess.dwExitCode) {
+                std::ostringstream message;
+                message<<"Workshop project picker exited unexpectedly (code 0x"<<std::hex
+                    <<event.u.ExitProcess.dwExitCode<<").";
+                throw std::runtime_error(message.str());
+            }
+            return false;
+        }
         if(selected) {
             // Detach before runtime initialization so normal DLL loading cannot block
             // waiting for this thread to service another debug event.

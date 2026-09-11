@@ -8,7 +8,7 @@ int wmain(int argc,wchar_t** argv) {
     try {
         const fs::path executable=argv[1],runtime=argv[2];
         const std::wstring mode=argv[3];
-        const bool picker=mode==L"picker-cancel" || mode==L"picker-ui" || mode==L"picker" || mode==L"picker-reject" || mode==L"cancel";
+        const bool picker=mode==L"picker-cancel" || mode==L"picker-ui" || mode==L"picker" || mode==L"picker-reject" || mode==L"cancel" || mode==L"picker-failure";
         const bool reject=mode==L"reject" || mode==L"picker-reject";
         // Production's CLI always supplies both flags. Verify the runtime independently rejects a normal session.
         std::vector<std::wstring> args{L"-tools"};

@@ -5,7 +5,7 @@
 #include <QTextEdit>
 #include <QTextDocument>
 #include <QTextCursor>
-#include <QPointer>
+#include "ui_pointer.h"
 #include <QTimer>
 #include <QJsonObject>
 #include <QMap>
@@ -13,8 +13,8 @@
 
 namespace {
 struct Source {
-    QPointer<QWidget> dialog;
-    QPointer<QTextDocument> document;
+    ha::UiPointer<QWidget> dialog;
+    ha::UiPointer<QTextDocument> document;
     uint64_t id=0, sequence=0;
     int revision=-1;
     uint32_t flags=0;

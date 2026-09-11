@@ -60,6 +60,8 @@ def main():
         assert 'supported original' in run(subprocess.list2cmdline([os.environ['COMSPEC']]) + ' /d /s /c ' + dropped, 1)
         for mode in ['cancel', 'picker-reject']:
             run([binaries / 'launch_test.exe', fixture / 'csgocfg.exe', package / 'hammer_addons_runtime.dll', mode])
+        failure = run([binaries / 'launch_test.exe', fixture / 'csgocfg.exe', package / 'hammer_addons_runtime.dll', 'picker-failure'], 1)
+        assert 'picker exited unexpectedly (code 0x17)' in failure and 'cancellation passed' not in failure
         run([binaries / 'launch_test.exe', fixture / 'cs2.exe', package / 'hammer_addons_runtime.dll', 'reject'])
         assert not (package / 'loader.log').exists(), 'Normal session must not initialize add-ons'
         output = run([binaries / 'launch_test.exe', fixture / 'cs2.exe', package / 'hammer_addons_runtime.dll', 'accept'])

@@ -17,6 +17,7 @@ int main(int argc,char** argv) {
     if(argc<2)return 2;
     const auto mode=QString::fromLocal8Bit(argv[1]).toStdWString();
     if(mode==L"cancel")return 0;
+    if(mode==L"picker-failure")return 23;
     if((mode==L"picker-ui" || mode==L"picker-cancel")) {
         QApplication app(argc,argv);
         QMainWindow window;window.setWindowTitle("Workshop Tools");

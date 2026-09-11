@@ -15,7 +15,7 @@
 #include <QLabel>
 #include <QMainWindow>
 #include <QMenuBar>
-#include <QPointer>
+#include "ui_pointer.h"
 #include <QPushButton>
 #include <QThread>
 #include <QTimer>
@@ -58,7 +58,7 @@ static QString window_tool(const QString& title) {
 class Panel final : public QObject {
     HA_UiHost host_;
     QByteArray previous_;
-    QPointer<QDockWidget> dock_;
+    ha::UiPointer<QDockWidget> dock_;
     QLabel* summary_ = nullptr;
     QLabel* notice_ = nullptr;
     QTreeWidget* rows_ = nullptr;
