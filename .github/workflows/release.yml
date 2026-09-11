@@ -1,0 +1,47 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build and test
+        shell: powershell
+        run: .\build.ps1 -Test
+      - name: Package tagged release
+        shell: powershell
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: python scripts/package-release.py --version "$env:RELEASE_TAG"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release
+          path: dist/release/
+          if-no-files-found: error
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: release
+          path: dist/release
+      - name: Publish verified release assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_REPO: ${{ github.repository }}
+        run: python3 scripts/publish-release.py --repo "$RELEASE_REPO" --version "$RELEASE_TAG" --directory dist/release --notes "docs/releases/$RELEASE_TAG.md"

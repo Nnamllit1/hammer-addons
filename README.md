@@ -25,7 +25,8 @@ in Hammer). See [build-output capture and SDK](docs/BUILD_OUTPUT.md) and
 
 ## Install and start
 
-**Start here: [step-by-step installation guide](docs/INSTALLATION.md).**
+**[Download a release](https://github.com/Nnamllit1/hammer-addons/releases)** or start with the
+[step-by-step installation guide](docs/INSTALLATION.md).
 It covers extracting the portable ZIP, your first launch, installing add-ons,
 troubleshooting, and optional desktop and Steam shortcuts.
 For command-line options and migration, use the [advanced launcher guide](docs/LAUNCHER.md).

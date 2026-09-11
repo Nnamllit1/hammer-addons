@@ -32,6 +32,8 @@ if ($LASTEXITCODE) { exit $LASTEXITCODE }
 $legacyProxy = Join-Path $PSScriptRoot 'dist\hammer.dll'
 if (Test-Path -LiteralPath $legacyProxy) { Remove-Item -LiteralPath $legacyProxy -Force }
 if ($Test) {
+    & python "$PSScriptRoot\scripts\test-release.py"
+    if ($LASTEXITCODE) { exit $LASTEXITCODE }
     & "$PSScriptRoot\build\native\$Configuration\runtime_test.exe" $PSScriptRoot
     if ($LASTEXITCODE) { exit $LASTEXITCODE }
     & "$PSScriptRoot\build\native\$Configuration\tool_logs_test.exe"
