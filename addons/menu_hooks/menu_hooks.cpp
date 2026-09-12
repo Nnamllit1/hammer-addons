@@ -1,3 +1,4 @@
+#include "hammer_reload.h"
 #include "hammer_extensions.h"
 #include <cstdio>
 #include <cstring>
@@ -31,4 +32,13 @@ extern "C" HA_EXPORT const HA_AddonV1* HA_CALL HA_Query(uint32_t abi) {
     static const HA_AddonV1 addon{sizeof(HA_AddonV1),HA_ABI_VERSION,"menu_hooks",
         HA_CAP_UI|HA_CAP_MENU_HOOKS,load,nullptr,nullptr};
     return abi==HA_ABI_VERSION ? &addon : nullptr;
+}
+
+static int HA_CALL prepare_reload() {
+    // All callbacks, UI bindings and subscriptions are owned by the framework.
+    return 1;
+}
+extern "C" HA_EXPORT const HA_ReloadV1* HA_CALL HA_QueryReload(uint32_t version) {
+    static const HA_ReloadV1 reload{sizeof(reload),HA_RELOAD_VERSION,prepare_reload};
+    return version==HA_RELOAD_VERSION ? &reload : nullptr;
 }

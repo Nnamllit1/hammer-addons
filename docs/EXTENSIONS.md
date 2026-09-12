@@ -10,6 +10,9 @@ load. Extension add-ons require this newer loader.
 
 Every public SDK feature has an example:
 
+All examples support [hot reload](HOT_RELOAD.md). For exception boundaries and
+native crash limitations, see [failure handling](FAILURE_HANDLING.md).
+
 | Example | Features |
 | --- | --- |
 | [reload_counter](../addons/reload_counter/reload_counter.cpp) | Opt-in DLL reload, cleanup contract and state preserved through settings |

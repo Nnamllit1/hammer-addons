@@ -246,28 +246,38 @@ Summary Runtime::scan(const std::string& only,const fs::path& staged) {
             log("loaded " + current->id + " " + data.at("version"));
         } catch (const std::exception& error) {
             ++result.rejected;
+            for(auto& addon:addons_)if(addon->status_index==index)fail_addon(*addon,"Initialization failed");
             status.detail = error.what();
             log("rejected " + path.filename().string() + ": " + error.what());
         } catch (...) {
             status.detail = "C++ exception";
+            for(auto& addon:addons_)if(addon->status_index==index)fail_addon(*addon,"Initialization threw a C++ exception");
             ++result.rejected;
             log("rejected " + path.filename().string() + ": C++ exception");
         }
     }
     return result;
 }
+void Runtime::fail_addon(Addon& addon,const char* reason) noexcept {
+    // Revoke access before any operation that can fail. Never call broken add-on
+    // cleanup code; its DLL and callback context remain resident until exit.
+    addon.active=false;addon.registering=false;addon.retired=true;
+    try{jobs_.stop(addon.id);}catch(...){}
+    addon.logs.clear();addon.steam_subscriptions.clear();
+    // Keep contribution storage until the active callback has unwound. Public
+    // snapshots and invocation skip inactive owners, so its UI is removed.
+    try{auto& state=statuses_[addon.status_index];state.state="Failed";state.detail=reason;}catch(...){}
+    try{log(addon.id+": "+reason);}catch(...){}
+}
 void Runtime::event(const char* name, const char* value) {
     std::unique_lock guard(callbacks_, std::try_to_lock);
     if (!guard.owns_lock() || dispatching_) return;
     dispatching_ = true;
     struct Reset { bool& value; ~Reset() { value = false; } } reset{dispatching_};
-    const HA_EventV1 event{sizeof(HA_EventV1), name, value};
+    const HA_EventV1 event{sizeof(HA_EventV1), name?name:"", value?value:""};
     for (auto& addon : addons_) if (addon->active && addon->api->on_event) {
         try { addon->api->on_event(&event); }
-        catch (...) { addon->active = false;
-            auto& status = statuses_[addon->status_index];
-            status.state = "Failed"; status.detail = "Event callback threw a C++ exception";
-            log("disabled event callback after C++ exception: " + addon->id); }
+        catch (...) { fail_addon(*addon,"Event callback threw a C++ exception"); }
     }
 }
 void Runtime::shutdown() {
@@ -317,8 +327,9 @@ std::string Runtime::status_json() {
     return out + "]}";
 }
 
-uint64_t HA_CALL Runtime::register_contribution(void* context, const HA_ContributionV1* definition) {
+uint64_t HA_CALL Runtime::register_contribution(void* context, const HA_ContributionV1* definition) noexcept {
     auto* addon = static_cast<Addon*>(context);
+    if(!addon)return 0;
     try {
         std::unique_lock guard(addon->owner->callbacks_, std::try_to_lock);
         if (!guard.owns_lock() || !addon->registering || !definition || addon->contributions.size() >= 128) return 0;
@@ -327,24 +338,29 @@ uint64_t HA_CALL Runtime::register_contribution(void* context, const HA_Contribu
         addon->contributions.push_back(std::move(contribution));
         return addon->owner->next_handle_++;
     } catch (const std::exception& error) {
-        addon->owner->log(addon->id + ": extension registration rejected: " + error.what());
+        try{addon->owner->log(addon->id + ": extension registration rejected: " + error.what());}catch(...){}
         return 0;
     } catch (...) { return 0; }
 }
-size_t HA_CALL Runtime::get_setting(void* context, const char* key, char* output, size_t capacity) {
-    auto* addon = static_cast<Addon*>(context);
-    std::unique_lock lock(addon->owner->callbacks_,std::try_to_lock);
-    if(!lock.owns_lock() || addon->retired)return 0;
-    return addon->owner->settings_.get(addon->id, key, output, capacity);
+size_t HA_CALL Runtime::get_setting(void* context, const char* key, char* output, size_t capacity) noexcept {
+    try{
+        auto* addon=static_cast<Addon*>(context);if(!addon)return 0;
+        std::unique_lock lock(addon->owner->callbacks_,std::try_to_lock);
+        if(!lock.owns_lock() || addon->retired)return 0;
+        return addon->owner->settings_.get(addon->id,key,output,capacity);
+    }catch(...){return 0;}
 }
-int HA_CALL Runtime::set_setting(void* context, const char* key, const char* value) {
-    auto* addon = static_cast<Addon*>(context);
-    std::unique_lock lock(addon->owner->callbacks_,std::try_to_lock);
-    if(!lock.owns_lock() || addon->retired)return 0;
-    return addon->owner->settings_.set(addon->id, key, value) ? 1 : 0;
+int HA_CALL Runtime::set_setting(void* context, const char* key, const char* value) noexcept {
+    try{
+        auto* addon=static_cast<Addon*>(context);if(!addon)return 0;
+        std::unique_lock lock(addon->owner->callbacks_,std::try_to_lock);
+        if(!lock.owns_lock() || addon->retired)return 0;
+        return addon->owner->settings_.set(addon->id,key,value)?1:0;
+    }catch(...){return 0;}
 }
-int HA_CALL Runtime::set_panel_text(void* context,uint64_t panel,const char* control,const char* value) {
+int HA_CALL Runtime::set_panel_text(void* context,uint64_t panel,const char* control,const char* value) noexcept {
     auto* addon=static_cast<Addon*>(context);
+    if(!addon)return 0;
     try {
         std::unique_lock lock(addon->owner->callbacks_,std::try_to_lock);
         if(!lock.owns_lock() || (!addon->active && !addon->registering) || !control || !value ||
@@ -412,11 +428,9 @@ int Runtime::invoke(uint64_t handle, const char* tool, const char* phase, const 
                 if (response && capacity) response[capacity-1] = 0;
                 return result == HA_CONTINUE || result == HA_HANDLED ? result : HA_ERROR;
             } catch (...) {
-                addon->active = false;
-                auto& state = statuses_[addon->status_index];
-                state.state = "Failed";
-                state.detail = "Extension callback threw a C++ exception";
-                log(addon->id + ": " + state.detail);
+                // A callback can overwrite the whole response and then throw.
+                if(response && capacity)response[0]=0;
+                fail_addon(*addon,"Extension callback threw a C++ exception");
                 return HA_ERROR;
             }
         }
@@ -473,8 +487,7 @@ void Runtime::pump_jobs() noexcept {
                 if(!a->active || current==a->steam_subscriptions.end() || current->after==steam_.state().revision)continue;
                 current->after=steam_.state().revision;
                 try {subscription.callback(&steam_.state());}
-                catch(...) {a->active=false;jobs_.stop(a->id);auto& status=statuses_[a->status_index];
-                    status.state="Failed";status.detail="Steam callback threw a C++ exception";log(status.detail);}
+                catch(...) {fail_addon(*a,"Steam callback threw a C++ exception");}
             }
         }
         for(const auto& a:addons_)if(!a->active)jobs_.stop(a->id);
@@ -487,8 +500,7 @@ void Runtime::pump_jobs() noexcept {
                     const HA_LogEventV1 event{sizeof(event),line.severity,line.channel,line.truncated,line.sequence,line.dropped,line.text.data()};
                     try {subscription.callback(&event);}
                     catch(...) {
-                        a->active=false;jobs_.stop(a->id);
-                        auto& status=statuses_[a->status_index];status.state="Failed";status.detail="Tool log callback threw a C++ exception";
+                        fail_addon(*a,"Tool log callback threw a C++ exception");
                     }
                 }
             }
@@ -500,9 +512,7 @@ void Runtime::pump_jobs() noexcept {
                 const HA_JobEventV1 event{sizeof(event),delivery.state,delivery.progress,delivery.id,delivery.text.c_str()};
                 try {delivery.callback(&event);}
                 catch(...) {
-                    a->active=false;jobs_.stop(a->id);
-                    auto& status=statuses_[a->status_index];status.state="Failed";
-                    status.detail="Queued editor callback threw a C++ exception";log(status.detail);
+                    fail_addon(*a,"Queued editor callback threw a C++ exception");
                 }
                 break;
             }

@@ -1,3 +1,4 @@
+#include "hammer_reload.h"
 #include "hammer_editor.h"
 #include "hammer_build.h"
 #include "hammer_jobs.h"
@@ -214,4 +215,15 @@ extern "C" HA_EXPORT const HA_AddonV1* HA_CALL HA_Query(uint32_t abi) {
     static const HA_AddonV1 addon{sizeof(addon),HA_ABI_VERSION,"compile_report",
         HA_CAP_TABLES|HA_CAP_PROJECT_CONTEXT|HA_CAP_BUILD_OUTPUT|HA_CAP_UI|HA_CAP_IMPORTERS|HA_CAP_LIVE_PANELS|HA_CAP_JOBS|HA_CAP_EDITOR_QUEUE,load,nullptr,nullptr};
     return abi==HA_ABI_VERSION ? &addon : nullptr;
+}
+
+static int HA_CALL prepare_reload() {
+    // SDK jobs and terminal deliveries are drained before this callback.
+    // All callbacks, UI bindings and subscriptions are owned by the framework.
+    currentReport={};history={};selected.clear();
+    return 1;
+}
+extern "C" HA_EXPORT const HA_ReloadV1* HA_CALL HA_QueryReload(uint32_t version) {
+    static const HA_ReloadV1 reload{sizeof(reload),HA_RELOAD_VERSION,prepare_reload};
+    return version==HA_RELOAD_VERSION ? &reload : nullptr;
 }

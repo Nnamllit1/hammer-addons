@@ -1,3 +1,4 @@
+#include "hammer_reload.h"
 #include "hammer_editor.h"
 #include "hammer_logs.h"
 #include <deque>
@@ -48,4 +49,14 @@ static int HA_CALL load(const HA_HostV1* api) {
 extern "C" HA_EXPORT const HA_AddonV1* HA_CALL HA_Query(uint32_t abi) {
     static const HA_AddonV1 addon{sizeof(addon),HA_ABI_VERSION,"tool_console",HA_CAP_UI|HA_CAP_LIVE_PANELS|HA_CAP_TOOL_LOGS,load,nullptr,nullptr};
     return abi==HA_ABI_VERSION?&addon:nullptr;
+}
+
+static int HA_CALL prepare_reload() {
+    // All callbacks, UI bindings and subscriptions are owned by the framework.
+    history.clear();
+    return 1;
+}
+extern "C" HA_EXPORT const HA_ReloadV1* HA_CALL HA_QueryReload(uint32_t version) {
+    static const HA_ReloadV1 reload{sizeof(reload),HA_RELOAD_VERSION,prepare_reload};
+    return version==HA_RELOAD_VERSION ? &reload : nullptr;
 }

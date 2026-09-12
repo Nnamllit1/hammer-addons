@@ -24,6 +24,21 @@ Finish copying or building before reloading.
 
 ## Author contract
 
+All bundled examples opt into reloading. Their menu hooks, UI and subscriptions
+are registered through the SDK and retired by the framework. `compile_report`
+can reload once its jobs and queued deliveries have drained; cancel a saved-log
+scan or let it finish before retrying.
+
+Settings in `panel_settings`, `picker_notes` and `reload_counter` survive reload.
+Other examples reset transient state: live counters, log/editor history, build
+report history, selection, filters and menu-hook preferences start fresh.
+Steam subscriptions and native-log subscriptions are registered again by the new
+instance. Tool logging remains unavailable while its provider is disabled.
+
+The updated manifests require a framework version that supports hot reload.
+When building a custom add-on from an example, reassess the cleanup contract
+whenever you add private threads, callbacks or editor hooks.
+
 Generate an example project with:
 
 ```powershell

@@ -11,6 +11,8 @@ own against the included SDK.
 
 The manager can [load newly installed add-ons and reload opt-in DLLs](docs/HOT_RELOAD.md)
 without restarting Workshop Tools. The SDK includes a reloadable counter example.
+All bundled examples support reloading. See [failure handling](docs/FAILURE_HANDLING.md)
+for callback isolation and the limits of in-process native add-ons.
 
 This is an unofficial project, independent of Valve.
 

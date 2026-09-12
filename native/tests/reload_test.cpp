@@ -1,4 +1,5 @@
 #include "runtime.h"
+#include "hammer_jobs.h"
 #include <fstream>
 #include <iostream>
 #include <regex>
@@ -95,8 +96,62 @@ int wmain(int argc,wchar_t** argv){try{
     {
         const auto root=base/"ordinary";const auto folder=root/"addons/hello";fs::create_directories(folder);
         fs::copy_file(binary/"hello.dll",folder/"hello.dll");fs::copy_file(fs::path(argv[1])/"addons/hello/addon.ini",folder/"addon.ini");
+        std::ofstream(folder/"addon.ini")<<"[addon]\nformat=1\nid=hello\nversion=0.1.0\nabi=1\nentry=hello.dll\nenabled=true\n";
         ha::Runtime runtime(root,root/"settings");check(runtime.start().loaded==1,"ordinary add-on loads");runtime.pump_jobs();
         check(!runtime.manage("reload","hello",message) && message.find("not opted")!=std::string::npos,"non-reloadable add-on refuses reload");runtime.shutdown();
     }
-    std::cout<<"Hot reload tests passed: DLL replacement, veto, jobs, stale callbacks, lifecycle faults, generation limit and persisted state.\n";return 0;
+
+    // Exercise every shipped manifest/export pair, including subscriptions and picker scope.
+    for(const auto* name:{"hello","commands","panel_settings","menu_hooks","note_import","picker_notes","editor_watch","live_status","compile_report","tool_console","project_context","steam_context"}){
+        const auto root=base/(std::string("example-")+name);const auto folder=root/"addons"/name;fs::create_directories(folder);
+        fs::copy_file(binary/(std::string(name)+".dll"),folder/(std::string(name)+".dll"));
+        fs::copy_file(fs::path(argv[1])/"addons"/name/"addon.ini",folder/"addon.ini");
+        ha::Runtime runtime(root,root/"settings",false,std::string(name)=="picker_notes"?"project_picker":"tools");
+        check(runtime.start().loaded==1,std::string("example loads: ")+name);runtime.pump_jobs();
+        for(int generation=0;generation<2;++generation){
+            check(runtime.manage("reload",name,message),std::string(name)+": "+message);runtime.pump_jobs();
+            check(runtime.status_json().find("Failed")==std::string::npos,"replacement remains healthy after dispatch");
+        }
+        runtime.shutdown();
+    }
+    for(int fault:{5,6,7}){
+        const auto root=base/("callback-fault"+std::to_string(fault));probe(root);
+        const auto healthy=root/"addons/commands";fs::create_directories(healthy);
+        fs::copy_file(binary/"commands.dll",healthy/"commands.dll");fs::copy_file(fs::path(argv[1])/"addons/commands/addon.ini",healthy/"addon.ini");
+        ha::Runtime runtime(root,root/"settings");check(runtime.start().loaded==2,"fault and healthy add-ons load together");runtime.pump_jobs();
+        const auto module=active_module(root);
+        const auto* host=symbol<const HA_HostV1*(HA_CALL*)()>(module,"ProbeHost")();
+        const auto* ext=HA_GetExtensions(host);char text[32]{};
+        check(!ext->get_setting(nullptr,"x",text,sizeof(text)) && !ext->set_setting(nullptr,"x","y") && !ext->register_contribution(nullptr,nullptr) && !ext->set_panel_text(nullptr,0,"x","y"),"null SDK contexts return errors");
+        symbol<void(HA_CALL*)(int)>(module,"ProbeMode")(fault);
+        const auto job=symbol<uint64_t(HA_CALL*)()>(module,"ProbeJob")();check(job!=0,"fault owner starts worker");
+        for(int i=0;i<1000 && !symbol<int(HA_CALL*)()>(module,"ProbeStarted")();++i)Sleep(1);
+        check(symbol<int(HA_CALL*)()>(module,"ProbeStarted")()!=0,"worker entered before inducing failure");
+        check(symbol<int(HA_CALL*)()>(module,"ProbePost")()!=0,"fault owner queues delivery");
+        if(fault==5){
+            // Locate the probe command, which is registered after the healthy command.
+            const auto json=runtime.status_json();std::regex pattern("\"handle\":([0-9]+)");uint64_t id=0;
+            for(std::sregex_iterator it(json.begin(),json.end(),pattern),end;it!=end;++it)id=std::stoull((*it)[1]);
+            char response[32]{};check(runtime.invoke(id,"asset_browser","command","","",response,sizeof(response))==HA_ERROR && response[0]==0,"throwing full-buffer callback returns an empty safe response");
+        }else if(fault==6)runtime.event("failure","test");
+        else runtime.pump_jobs();
+        // No pump: cancellation must happen synchronously with the failed callback.
+        for(int i=0;i<1000 && !symbol<int(HA_CALL*)()>(module,"ProbeCancelled")();++i)Sleep(1);
+        check(symbol<int(HA_CALL*)()>(module,"ProbeCancelled")()!=0,"failure immediately cancels owned worker");
+        check(!ext->set_setting(host->context,"stale","write") && !ext->get_setting(host->context,"stale",text,sizeof(text)),"failed context cannot access settings");
+        check(!symbol<int(HA_CALL*)()>(module,"ProbePost")(),"failed context cannot enqueue callbacks");
+        const auto delivered=symbol<int(HA_CALL*)()>(module,"ProbeDeliveries")();runtime.pump_jobs();
+        check(symbol<int(HA_CALL*)()>(module,"ProbeDeliveries")()==delivered,"no further dispatch to failed owner");
+        check(runtime.manage("reload","commands",message),"healthy sibling still reloads after failure");
+        runtime.shutdown();check(symbol<int(HA_CALL*)()>(module,"ProbeStops")()==0,"broken owner shutdown is not called");
+    }
+    {
+        const auto root=base/"partial-load";probe(root);
+        fs::copy_file(binary/"reload_probe_v3.dll",root/"addons/reload_probe/reload_probe.dll",fs::copy_options::overwrite_existing);
+        ha::Runtime runtime(root,root/"settings");check(runtime.start().rejected==1,"partial initialization failure is contained");
+        const auto* host=symbol<const HA_HostV1*(HA_CALL*)()>(active_module(root),"ProbeHost")();
+        check(!HA_GetExtensions(host)->set_setting(host->context,"after_failure","bad"),"partially initialized host is revoked");
+        check(runtime.status_json().find("\"contributions\":[]")!=std::string::npos,"partial contributions never exposed");runtime.shutdown();
+    }
+    std::cout<<"Hot reload tests passed: DLL replacement, veto, jobs, stale callbacks, lifecycle faults, all examples, immediate cancellation, response buffers, generation limit and persisted state.\n";return 0;
 }catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}}

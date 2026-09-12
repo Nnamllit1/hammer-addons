@@ -23,7 +23,8 @@ def main():
         package = directory / 'hammer-addons'
         hello = package / 'addons' / 'hello'
         hello.mkdir(parents=True)
-        original = (root / 'addons/hello/addon.ini').read_text()
+        # Keep legacy manifest coverage for synthetic fixtures without HA_QueryReload.
+        original = (root / 'addons/hello/addon.ini').read_text().replace('reloadable=true\n', '')
         (hello / 'addon.ini').write_text(original)
         shutil.copy2(binaries / 'hello.dll', hello)
 

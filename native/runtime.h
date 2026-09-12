@@ -68,6 +68,7 @@ private:
         std::vector<SteamSubscription> steam_subscriptions;
         size_t status_index = 0;
     };
+    void fail_addon(Addon& addon,const char* reason) noexcept;
     Addon* steam_action_owner_ = nullptr;
     static int HA_CALL steam_snapshot(void*,HA_SteamStateV1*) noexcept;
     static int HA_CALL steam_friend(void*,uint64_t,uint32_t,HA_SteamFriendV1*) noexcept;
@@ -75,10 +76,10 @@ private:
     static int HA_CALL steam_friends(void*) noexcept;
     static uint64_t HA_CALL subscribe_steam(void*,HA_SteamCallbackFn) noexcept;
     static int HA_CALL unsubscribe_steam(void*,uint64_t) noexcept;
-    static uint64_t HA_CALL register_contribution(void*, const HA_ContributionV1*);
-    static size_t HA_CALL get_setting(void*, const char*, char*, size_t);
-    static int HA_CALL set_setting(void*, const char*, const char*);
-    static int HA_CALL set_panel_text(void*,uint64_t,const char*,const char*);
+    static uint64_t HA_CALL register_contribution(void*, const HA_ContributionV1*) noexcept;
+    static size_t HA_CALL get_setting(void*, const char*, char*, size_t) noexcept;
+    static int HA_CALL set_setting(void*, const char*, const char*) noexcept;
+    static int HA_CALL set_panel_text(void*,uint64_t,const char*,const char*) noexcept;
     static const HA_ProjectInfoV1* HA_CALL current_project(void*) noexcept;
     static size_t HA_CALL source_path(void*,const char*,char*,size_t) noexcept;
     static int HA_CALL logs_available(void*) noexcept;

@@ -219,6 +219,16 @@ int main(int argc,char** argv) {
         check(browser.findChild<QAction*>("HA.Action.commands.greet")!=nullptr,"other add-ons retained");
         const int before=callbacks; pump();
         check(callbacks==before,"refresh does not invoke callbacks");
+        runtime->pump_jobs();
+        std::string reloadMessage;
+        check(runtime->manage("reload","menu_hooks",reloadMessage),reloadMessage.c_str());pump();
+        check(browser.findChildren<QAction*>("HA.Hook.NativeAbout").size()==1,"reloaded hook has a single wrapper");
+        const auto callsBeforeReload=nativeCalls;
+        action(browser,"HA.Hook.NativeAbout")->trigger();
+        check(nativeCalls==callsBeforeReload+1 && last_phase=="hook.after","replacement hook restores default behavior and continuation");
+        check(runtime->manage("reload","panel_settings",reloadMessage),reloadMessage.c_str());pump();
+        action(browser,"HA.Action.panel_settings.preferences")->trigger();
+        check(browser.findChild<QDockWidget*>("HA.Panel.panel_settings.preferences")->findChild<QLineEdit*>("HA.Control.name")->text()=="Ada","settings example retains saved edits after reload");
         // Install while the UI is open, then reload through the actual manager buttons.
         const auto counterFolder=package/"addons/reload_counter";fs::create_directories(counterFolder);
         fs::copy_file(fs::path(QCoreApplication::applicationDirPath().toStdWString())/"reload_counter.dll",counterFolder/"reload_counter.dll");
