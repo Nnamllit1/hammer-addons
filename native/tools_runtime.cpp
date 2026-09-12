@@ -22,6 +22,12 @@ static int __cdecl invoke_build(void*,uint64_t handle,const char* phase,const HA
     try{return runtime->invoke(handle,"hammer",phase,"","",nullptr,0,nullptr,state);}catch(...){return HA_ERROR;}
 }
 static void __cdecl pump_jobs(void*) {runtime->pump_jobs();}
+static int __cdecl manage_addons(void*,const char* action,const char* addon,char* response,size_t capacity){
+    try {std::string message;const auto result=runtime->manage(action,addon,message);
+        if(response && capacity){const auto count=std::min(message.size(),capacity-1);memcpy(response,message.data(),count);response[count]=0;}
+        return result;
+    }catch(...){return 0;}
+}
 static void __cdecl editor_window(void*,uint64_t id,int open) {runtime->editor_window(id,open!=0);}
 static int __cdecl invoke_editor(void*,uint64_t handle,const char* tool,const char* phase,const HA_EditorStateV1* state) {
     try {return runtime->invoke(handle,tool,phase,"","",nullptr,0,state);}catch(...){return HA_ERROR;}
@@ -80,7 +86,7 @@ extern "C" __declspec(dllexport) DWORD WINAPI HA_StartTools(void*) noexcept {
                 // Build output uses the Qt observer independently of native logging.
                 runtime->log("Native tool logging disabled pending live stability verification");
                 try{runtime->start();}catch(const std::exception& e){runtime->initialization_error(e.what());}
-                static const HA_UiHost host{sizeof(HA_UiHost),nullptr,read,invoke,report,invoke_editor,pump_jobs,editor_window,invoke_build};
+                static const HA_UiHost host{sizeof(HA_UiHost),nullptr,read,invoke,report,invoke_editor,pump_jobs,editor_window,invoke_build,manage_addons};
                 for(unsigned ready=attempt;ready<120;++ready) {
                     if(start(&host)) {runtime->log("Tools add-on runtime started; UI initialization queued");return 1;}
                     Sleep(500);

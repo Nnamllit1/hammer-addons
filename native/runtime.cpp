@@ -1,5 +1,7 @@
 #include "runtime.h"
 #include <algorithm>
+#include <atomic>
+#include <cwctype>
 #include <cstring>
 #include <fstream>
 #include <iostream>
@@ -58,17 +60,68 @@ static std::map<std::string, std::string> manifest(const fs::path& file) {
     }
     for (const auto& [key, value] : values) {
         if (key != "format" && key != "abi" && key != "id" && key != "version" &&
-            key != "enabled" && key != "entry" && key != "tools")
+            key != "enabled" && key != "entry" && key != "tools" && key != "reloadable")
             throw std::runtime_error("unknown manifest key");
     }
-    if ((values.size() != 6 && values.size() != 7) || values["format"] != "1" || values["abi"] != "1" ||
+    if ((values.size() < 6 || values.size() > 8) || values["format"] != "1" || values["abi"] != "1" ||
         !std::regex_match(values["id"], std::regex("[a-z][a-z0-9_]{0,63}")) ||
         !std::regex_match(values["version"], std::regex("[0-9]+\\.[0-9]+\\.[0-9]+")) ||
         (values["enabled"] != "true" && values["enabled"] != "false") ||
         !std::regex_match(values["entry"], std::regex("[a-zA-Z0-9_-]+\\.dll")))
         throw std::runtime_error("unsupported or incomplete addon.ini");
+    if(values.contains("reloadable") && values.at("reloadable")!="true" && values.at("reloadable")!="false")throw std::runtime_error("reloadable must be true or false");
     if (values.contains("tools")) tool_tags(values.at("tools"));
     return values;
+}
+struct ReloadLocks {
+    std::vector<HANDLE> files;
+    ~ReloadLocks(){for(const auto file:files)CloseHandle(file);}
+    BY_HANDLE_FILE_INFORMATION hold(const fs::path& path,bool directory=false){
+        const auto file=CreateFileW(path.c_str(),GENERIC_READ,FILE_SHARE_READ|(directory?FILE_SHARE_WRITE:0),nullptr,OPEN_EXISTING,
+            FILE_FLAG_BACKUP_SEMANTICS|FILE_FLAG_OPEN_REPARSE_POINT,nullptr);
+        if(file==INVALID_HANDLE_VALUE)throw std::runtime_error("Cannot lock reload package files; finish copying or building, then retry");
+        BY_HANDLE_FILE_INFORMATION info{};
+        if(!GetFileInformationByHandle(file,&info) || (info.dwFileAttributes&FILE_ATTRIBUTE_REPARSE_POINT)){
+            CloseHandle(file);throw std::runtime_error("Invalid reload package path");
+        }
+        try{files.push_back(file);}catch(...){CloseHandle(file);throw;}
+        return info;
+    }
+};
+struct ReloadCopy {fs::path directory;std::shared_ptr<ReloadLocks> locks;};
+static ReloadCopy stage_reloadable(const fs::path& source,const fs::path& root,const std::string& entry) {
+    if(!plain_path(source))throw std::runtime_error("Reload package contains a reparse point");
+    ReloadCopy result{{},std::make_shared<ReloadLocks>()};
+    result.locks->hold(source,true);
+    std::vector<fs::path> files,directories;
+    uint64_t bytes=0;size_t count=0;
+    for(const auto& file:fs::recursive_directory_iterator(source)) {
+        if(++count>1024)throw std::runtime_error("Reload package exceeds 1024 entries");
+        if(!plain_path(file.path()))throw std::runtime_error("Reload package contains a reparse point");
+        if(file.is_directory()){result.locks->hold(file.path(),true);directories.push_back(file.path());continue;}
+        if(!file.is_regular_file())throw std::runtime_error("Reload package contains a non-regular file");
+        auto extension=file.path().extension().wstring();std::transform(extension.begin(),extension.end(),extension.begin(),::towlower);
+        if(extension==L".dll" && file.path()!=source/entry)throw std::runtime_error("Reloadable packages currently support one DLL; private DLL dependencies require restart");
+        const auto info=result.locks->hold(file.path());
+        bytes+=(uint64_t(info.nFileSizeHigh)<<32)|info.nFileSizeLow;
+        if(bytes>1024ull*1024*1024)throw std::runtime_error("Reload package exceeds 1 GiB");
+        files.push_back(file.path());
+    }
+    if(std::find(files.begin(),files.end(),source/entry)==files.end())throw std::runtime_error("Reload package DLL is missing");
+    const auto cache=root/"runtime-cache";
+    if(!plain_path(cache))throw std::runtime_error("Invalid reload cache path");
+    fs::create_directories(cache);
+    static std::atomic<uint64_t> serial{0};fs::path generation;
+    do {generation=cache/(std::to_string(GetCurrentProcessId())+"-"+std::to_string(GetTickCount64())+"-"+std::to_string(++serial));}while(!fs::create_directory(generation));
+    result.directory=generation/source.filename();fs::create_directory(result.directory);
+    for(const auto& directory:directories)fs::create_directories(result.directory/directory.lexically_relative(source));
+    // Holding source handles denies concurrent writes during the copy. Retain
+    // destination read handles through LoadLibrary and on_load too.
+    for(const auto& file:files){
+        const auto target=result.directory/file.lexically_relative(source);
+        fs::copy_file(file,target);result.locks->hold(target);
+    }
+    return result;
 }
 Runtime::Runtime(fs::path root, fs::path settings_root, bool factory_events, std::string process_scope, SteamExports steam_exports) : settings_(std::move(settings_root)), steam_(steam_exports), root_(std::move(root)), factory_events_(factory_events), process_scope_(std::move(process_scope)) {}
 void Runtime::log(std::string_view message) noexcept {
@@ -104,6 +157,11 @@ Summary Runtime::start() {
     std::lock_guard guard(callbacks_);
     if (started_) throw std::runtime_error("runtime already started");
     started_ = true;
+    dispatching_=true;
+    struct Reset{bool& flag;~Reset(){flag=false;}} reset{dispatching_};
+    return scan();
+}
+Summary Runtime::scan(const std::string& only,const fs::path& staged) {
     Summary result;
     if (!plain_path(root_)) throw std::runtime_error("loader directory contains a reparse point");
     if (fs::exists(root_ / "disabled")) { notice_ = "Add-ons disabled by the global marker file. Remove it and restart Workshop Tools to load add-ons."; log("disabled by marker file"); return result; }
@@ -114,8 +172,13 @@ Summary Runtime::start() {
     for (const auto& item : fs::directory_iterator(directory)) if (item.is_directory()) paths.push_back(item.path());
     std::sort(paths.begin(), paths.end());
     for (const auto& path : paths) {
-        statuses_.push_back({path.filename().string(), "", "Failed", "", {}});
-        auto& status = statuses_.back();
+        const auto id=path.filename().string();
+        if((!only.empty() && only!=id) || std::any_of(addons_.begin(),addons_.end(),[&](const auto& a){return a->id==id;}))continue;
+        auto existing=std::find_if(statuses_.begin(),statuses_.end(),[&](const auto& row){return row.id==id;});
+        size_t index=existing==statuses_.end()?statuses_.size():static_cast<size_t>(existing-statuses_.begin());
+        if(index==statuses_.size())statuses_.push_back({id,"","Failed","",{}});
+        else statuses_[index]={id,"","Failed","",{}};
+        auto& status = statuses_[index];
         try {
             const auto data = manifest(path / "addon.ini");
             status.version = data.at("version");
@@ -129,13 +192,17 @@ Summary Runtime::start() {
                (process_scope_=="tools" && picker_tag && status.tools.size()==1)) {
                 status.state="Skipped";status.detail="Not enabled for this application";continue;
             }
-            const auto entry = fs::absolute(path / data.at("entry"));
+            const bool reloadable=data.contains("reloadable") && data.at("reloadable")=="true";
+            const auto copy=reloadable && staged.empty()?stage_reloadable(path,root_,data.at("entry")):ReloadCopy{};
+            const auto load_path=reloadable?(staged.empty()?copy.directory:staged):path;
+            if(reloadable && manifest(load_path/"addon.ini")!=data)throw std::runtime_error("Manifest changed while preparing reload copy; retry");
+            const auto entry = fs::absolute(load_path / data.at("entry"));
             if (!plain_path(entry)) throw std::runtime_error("DLL path contains a reparse point");
             auto addon = std::make_unique<Addon>();
             addon->owner = this;
-            addon->status_index = statuses_.size() - 1;
+            addon->status_index = index;
             addon->id = data.at("id");
-            const auto utf8 = fs::absolute(path).u8string();
+            const auto utf8 = fs::absolute(load_path).u8string();
             addon->directory.assign(utf8.begin(), utf8.end());
             // No current-directory DLL search. Private dependencies belong beside the add-on.
             addon->module = LoadLibraryExW(entry.c_str(), nullptr, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
@@ -159,6 +226,13 @@ Summary Runtime::start() {
             static const HA_ExtensionsV1 extension_api{sizeof(HA_ExtensionsV1), HA_EXTENSIONS_VERSION,
                 register_contribution, get_setting, set_setting, set_panel_text, &job_api, &log_api, &project_api, &steam_api};
             current->host = {sizeof(HA_HostV1), HA_ABI_VERSION, capabilities, current, addon_log, current->directory.c_str(), &extension_api};
+            if(reloadable){
+                const auto query_reload=reinterpret_cast<HA_QueryReloadFn>(GetProcAddress(current->module,"HA_QueryReload"));
+                const auto* reload=query_reload?query_reload(HA_RELOAD_VERSION):nullptr;
+                if(!reload || reload->size<sizeof(HA_ReloadV1) || reload->version!=HA_RELOAD_VERSION || !reload->prepare_reload)
+                    throw std::runtime_error("reloadable=true requires a valid HA_QueryReload lifecycle export");
+                current->reload=reload;
+            }
             current->registering = true;
             int loaded = 0;
             try { loaded = api->on_load(&current->host); }
@@ -198,6 +272,7 @@ void Runtime::event(const char* name, const char* value) {
 }
 void Runtime::shutdown() {
     std::lock_guard guard(callbacks_);
+    stopped_=true;
     jobs_.stop_all();
     for (auto it = addons_.rbegin(); it != addons_.rend(); ++it) if ((*it)->active) {
         (*it)->active = false;
@@ -258,10 +333,14 @@ uint64_t HA_CALL Runtime::register_contribution(void* context, const HA_Contribu
 }
 size_t HA_CALL Runtime::get_setting(void* context, const char* key, char* output, size_t capacity) {
     auto* addon = static_cast<Addon*>(context);
+    std::unique_lock lock(addon->owner->callbacks_,std::try_to_lock);
+    if(!lock.owns_lock() || addon->retired)return 0;
     return addon->owner->settings_.get(addon->id, key, output, capacity);
 }
 int HA_CALL Runtime::set_setting(void* context, const char* key, const char* value) {
     auto* addon = static_cast<Addon*>(context);
+    std::unique_lock lock(addon->owner->callbacks_,std::try_to_lock);
+    if(!lock.owns_lock() || addon->retired)return 0;
     return addon->owner->settings_.set(addon->id, key, value) ? 1 : 0;
 }
 int HA_CALL Runtime::set_panel_text(void* context,uint64_t panel,const char* control,const char* value) {
@@ -509,5 +588,63 @@ int HA_CALL Runtime::unsubscribe_steam(void* context,uint64_t id) noexcept {
         std::unique_lock lock(a->owner->callbacks_,std::try_to_lock);
         return lock.owns_lock() && std::erase_if(a->steam_subscriptions,[id](const auto& s){return s.id==id;})!=0;
     }catch(...){return 0;}
+}
+}
+
+
+namespace ha {
+int Runtime::manage(const char* action,const char* id,std::string& message){
+    try {
+        std::unique_lock lock(callbacks_,std::try_to_lock);
+        if(!lock.owns_lock() || dispatching_ || !started_ || stopped_ || !editor_thread_ || editor_thread_!=GetCurrentThreadId()){
+            message="Add-on management is busy or unavailable on this thread. Try again.";return 0;
+        }
+        dispatching_=true;struct Reset{bool& flag;~Reset(){flag=false;}} reset{dispatching_};
+        if(fs::exists(root_/"disabled"))throw std::runtime_error("Add-on management is disabled by the global marker file");
+        const std::string operation=action?action:"";
+        if(operation=="load"){
+            const auto result=scan();
+            message="Loaded "+std::to_string(result.loaded)+" new add-on(s); "+std::to_string(result.rejected)+" failed. See Details.";return result.rejected?0:1;
+        }
+        if(operation!="reload")throw std::runtime_error("Unknown add-on management action");
+        auto found=std::find_if(addons_.begin(),addons_.end(),[&](const auto& a){return a->id==(id?id:"");});
+        if(found==addons_.end() || !(*found)->active)throw std::runtime_error("Select a running add-on to reload");
+        auto& old=**found;
+        if(!old.reload)throw std::runtime_error("This add-on has not opted into hot reload; restart Workshop Tools");
+        if(old.generation>=31)throw std::runtime_error("32 generations reached for this add-on; restart Workshop Tools to reclaim retired images");
+        if(!jobs_.idle(old.id))throw std::runtime_error("Add-on jobs or queued callbacks are still pending. Let them finish, then retry reload");
+        const auto source=root_/"addons"/old.id;
+        const auto data=manifest(source/"addon.ini");
+        if(data.at("id")!=old.id || data.at("enabled")!="true" || !data.contains("reloadable") || data.at("reloadable")!="true")throw std::runtime_error("Replacement must remain enabled and reloadable with the same add-on ID");
+        const auto tags=data.contains("tools")?tool_tags(data.at("tools")):std::vector<std::string>{};
+        const bool picker=std::find(tags.begin(),tags.end(),"project_picker")!=tags.end();
+        if((process_scope_=="project_picker" && !picker) || (process_scope_=="tools" && picker && tags.size()==1))throw std::runtime_error("Replacement is not enabled for this process");
+        // Copy and lock the replacement before asking the old instance to retire.
+        const auto staged=stage_reloadable(source,root_,data.at("entry"));
+        if(manifest(staged.directory/"addon.ini")!=data)throw std::runtime_error("Manifest changed while preparing reload copy; retry");
+        retired_.reserve(retired_.size()+1);
+        int prepared=0;
+        try{
+            prepared=old.reload->prepare_reload();
+            if(prepared==1 && !jobs_.idle(old.id))throw std::runtime_error("Queued work during retirement");
+        }
+        catch(...){
+            old.active=false;old.retired=true;jobs_.stop(old.id);old.contributions.clear();old.logs.clear();old.steam_subscriptions.clear();
+            statuses_[old.status_index].state="Failed";statuses_[old.status_index].detail="Reload preparation failed; restart required";
+            throw std::runtime_error(statuses_[old.status_index].detail);
+        }
+        if(prepared!=1){message="Add-on declined reload; the current instance remains active.";return 0;}
+        const auto name=old.id;const auto generation=old.generation+1;const auto index=old.status_index;
+        old.active=false;jobs_.stop(name);old.logs.clear();old.steam_subscriptions.clear();old.contributions.clear();
+        try{if(old.api->on_shutdown)old.api->on_shutdown();}
+        catch(...){old.retired=true;statuses_[index].state="Failed";statuses_[index].detail="Reload shutdown threw; restart required";throw std::runtime_error(statuses_[index].detail);}
+        old.retired=true;
+        // Keep contexts and images resident, but remove retired generations from dispatch/job ownership.
+        retired_.push_back(std::move(*found));addons_.erase(found);
+        const auto result=scan(name,staged.directory);
+        for(auto& a:addons_)if(a->id==name)a->generation=generation;
+        if(!result.loaded){message="Replacement failed to load. The previous instance is stopped; see Details.";return 0;}
+        message="Reloaded "+name+" without restarting Workshop Tools.";return 1;
+    }catch(const std::exception& error){message=error.what();return 0;}catch(...){message="Add-on lifecycle threw; reload did not complete.";return 0;}
 }
 }

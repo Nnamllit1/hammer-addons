@@ -16,5 +16,6 @@ struct HA_UiHost {
     void (__cdecl *pump_jobs)(void*);
     void (__cdecl *editor_window)(void*,uint64_t,int);
     int (__cdecl *invoke_build)(void*,uint64_t,const char*,const HA_BuildOutputV1*);
+    int (__cdecl *manage_addons)(void*,const char* action,const char* addon,char* response,size_t capacity);
 };
 typedef int (__cdecl *HA_UiStart)(const HA_UiHost* host);

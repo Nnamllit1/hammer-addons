@@ -12,6 +12,7 @@
 #include <QMenu>
 #include <QThread>
 #include <QTreeWidget>
+#include <QPushButton>
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
@@ -20,6 +21,12 @@
 extern "C" __declspec(dllimport) int __cdecl HA_StartUi(const HA_UiHost*);
 static QByteArray status = R"({"directory":"C:/addons","notice":"","addons":[{"id":"hello","version":"0.1.0","state":"Loaded","detail":"Ready","tools":["all"]},{"id":"off","version":"1.0.0","state":"Disabled","detail":"Disabled in addon.ini","tools":["modeldoc"]},{"id":"broken","version":"","state":"Failed","detail":"Missing DLL","tools":["asset_browser","hammer"]}]})";
 static bool busy = false;
+static std::string managed_action,managed_id;
+static int __cdecl manage(void*,const char* action,const char* id,char* out,size_t capacity){
+    managed_action=action;managed_id=id;
+    if(capacity>2)std::memcpy(out,"OK",3);
+    return 1;
+}
 static size_t __cdecl read_status(void*, char* out, size_t capacity) {
     if (busy) return 0;
     auto size = static_cast<size_t>(status.size() + 1);
@@ -54,6 +61,7 @@ int main(int argc, char** argv) {
         QMainWindow unrelated; unrelated.setWindowTitle("Preferences"); unrelated.show();
         QMainWindow browser; browser.setWindowTitle("Asset Browser"); browser.resize(900, 700); browser.show();
         HA_UiHost host{sizeof(HA_UiHost), nullptr, read_status};
+        host.manage_addons=manage;
         check(HA_StartUi(nullptr) == 0);
         int started = 0;
         std::thread worker([&] { started = HA_StartUi(&host); }); worker.join();
@@ -64,6 +72,13 @@ int main(int argc, char** argv) {
         check(unrelated.findChild<QDockWidget*>("HammerAddonsDock") == nullptr);
         check(browserDock->windowTitle() == "Workshop Add-ons");
         check(browserDock->findChild<QTreeWidget*>("HammerAddonsList")->topLevelItemCount() == 3);
+        auto* list=browserDock->findChild<QTreeWidget*>("HammerAddonsList");
+        list->setCurrentItem(list->topLevelItem(0));
+        auto* reload=browserDock->findChild<QPushButton*>("HammerAddonsReload");
+        auto* load=browserDock->findChild<QPushButton*>("HammerAddonsLoadNew");
+        check(reload && load && reload->isEnabled() && load->isEnabled());
+        reload->click();check(managed_action=="reload" && managed_id=="hello");
+        load->click();check(managed_action=="load");
         auto* hammer = new QMainWindow;
         auto* help = hammer->menuBar()->addMenu("&Help");
         help->addAction("Existing help");

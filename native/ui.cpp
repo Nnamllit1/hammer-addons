@@ -116,7 +116,26 @@ class Panel final : public QObject {
         auto* folder = new QPushButton(QStringLiteral("Open add-ons folder"), panel);
         connect(folder, &QPushButton::clicked, this, [this] { open_folder(); });
         heading->addWidget(folder);
+        auto* load=new QPushButton("Load new add-ons",panel);
+        load->setObjectName("HammerAddonsLoadNew");load->setEnabled(host_.manage_addons!=nullptr);
+        auto* reload=new QPushButton("Reload selected",panel);
+        reload->setObjectName("HammerAddonsReload");reload->setEnabled(host_.manage_addons!=nullptr);
+        auto manage=[self=ha::UiPointer<Panel>(this),window=ha::UiPointer<QMainWindow>(window)](const char* action){
+            if(!self || !self->host_.manage_addons)return;
+            const auto selected=self->rows_?self->rows_->currentItem():nullptr;
+            const auto id=selected?selected->text(0).toUtf8():QByteArray{};
+            // Native lifecycle callbacks may run a message loop and close the window.
+            const auto host=self->host_;
+            char message[1024]{};host.manage_addons(host.context,action,id.constData(),message,sizeof(message));
+            if(window)window->statusBar()->showMessage(QString::fromUtf8(message),15000);
+            if(self)self->tick();
+        };
+        connect(load,&QPushButton::clicked,this,[manage]{manage("load");});
+        connect(reload,&QPushButton::clicked,this,[manage]{manage("reload");});
         layout->addLayout(heading);
+        auto* management=new QHBoxLayout;
+        management->addWidget(load);management->addWidget(reload);management->addStretch();
+        layout->addLayout(management);
         auto* filtering = new QHBoxLayout;
         filtering->addWidget(new QLabel(QStringLiteral("Tool:"), panel));
         filter_ = new QComboBox(panel);
@@ -142,7 +161,7 @@ class Panel final : public QObject {
         rows_->header()->setSectionResizeMode(QHeaderView::ResizeToContents);
         rows_->header()->setStretchLastSection(true);
         layout->addWidget(rows_);
-        auto* help = new QLabel(QStringLiteral("Drop add-ons into the folder, then restart Workshop Tools. Edit addon.ini to enable or disable an add-on."), panel);
+        auto* help = new QLabel(QStringLiteral("Use Load new add-ons after installation. Reload selected requires an add-on that supports reloading. Set enabled=false in addon.ini to disable an add-on on restart."), panel);
         help->setWordWrap(true);
         layout->addWidget(help);
         dock->setWidget(tabs_);

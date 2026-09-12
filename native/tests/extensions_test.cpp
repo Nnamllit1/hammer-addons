@@ -13,6 +13,8 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QLineEdit>
+#include <QLabel>
+#include "ui_pointer.h"
 #include <QMainWindow>
 #include <QMenuBar>
 #include <QPushButton>
@@ -29,6 +31,13 @@ namespace fs=std::filesystem;
 static ha::Runtime* runtime;
 static int callbacks=0;
 static std::string last_phase,last_value,last_response;
+static int management_result;
+static std::string management_message;
+static int __cdecl manage(void*,const char* action,const char* id,char* out,size_t size){
+    management_result=runtime->manage(action,id,management_message);
+    if(out && size>management_message.size())std::memcpy(out,management_message.c_str(),management_message.size()+1);
+    return management_result;
+}
 static void check(bool ok,const char* message) { if(!ok) throw std::runtime_error(message); }
 static void pump(int ms=850) {
     QElapsedTimer timer; timer.start();
@@ -124,7 +133,8 @@ int main(int argc,char** argv) {
         int importCalls=0;
         QObject::connect(nativeImport,&QAction::triggered,&model,[&] { ++importCalls; });
         model.show();
-        const HA_UiHost bridge{sizeof(HA_UiHost),nullptr,read,invoke,report};
+        HA_UiHost bridge{sizeof(HA_UiHost),nullptr,read,invoke,report};
+        bridge.manage_addons=manage;
         check(HA_StartUi(&bridge),"UI startup");
         pump();
 
@@ -209,6 +219,30 @@ int main(int argc,char** argv) {
         check(browser.findChild<QAction*>("HA.Action.commands.greet")!=nullptr,"other add-ons retained");
         const int before=callbacks; pump();
         check(callbacks==before,"refresh does not invoke callbacks");
+        // Install while the UI is open, then reload through the actual manager buttons.
+        const auto counterFolder=package/"addons/reload_counter";fs::create_directories(counterFolder);
+        fs::copy_file(fs::path(QCoreApplication::applicationDirPath().toStdWString())/"reload_counter.dll",counterFolder/"reload_counter.dll");
+        fs::copy_file(root/"addons/reload_counter/addon.ini",counterFolder/"addon.ini");
+        runtime->pump_jobs();
+        auto* manager=browser.findChild<QDockWidget*>("HammerAddonsDock");
+        manager->findChild<QPushButton*>("HammerAddonsLoadNew")->click();pump();
+        check(management_result==1,management_message.c_str());
+        action(browser,"HA.Action.reload_counter.counter")->trigger();pump(100);
+        auto* counter=browser.findChild<QDockWidget*>("HA.Panel.reload_counter.counter");
+        check(counter && counter->isVisible(),"hot-loaded panel opens");
+        ha::UiPointer<QDockWidget> previousCounter(counter);
+        counter->findChild<QPushButton*>("HA.Control.increment")->click();pump();
+        check(counter->findChild<QLabel*>("HA.Control.count")->text()=="Count: 1","hot-loaded panel callback");
+        auto* managerList=manager->findChild<QTreeWidget*>("HammerAddonsList");
+        const auto counterRows=managerList->findItems("reload_counter",Qt::MatchExactly,0);
+        check(counterRows.size()==1,"single manager row after discovery");managerList->setCurrentItem(counterRows.first());
+        manager->findChild<QPushButton*>("HammerAddonsReload")->click();pump();
+        check(management_result==1,management_message.c_str());
+        check(!previousCounter,"retired panel destroyed");
+        check(browser.findChildren<QDockWidget*>("HA.Panel.reload_counter.counter").size()==1,"replacement does not duplicate panel");
+        action(browser,"HA.Action.reload_counter.counter")->trigger();pump(100);
+        counter=browser.findChild<QDockWidget*>("HA.Panel.reload_counter.counter");
+        check(counter->isVisible() && counter->findChild<QLabel*>("HA.Control.count")->text()=="Count: 1","replacement panel restores saved state");
         runtime->shutdown(); pump();
         check(help->actions().contains(nativeAbout),"native menu restored at shutdown");
         check(nativeAbout->shortcut()==QKeySequence("Ctrl+Alt+B"),"native shortcut restored");

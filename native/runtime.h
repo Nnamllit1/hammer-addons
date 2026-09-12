@@ -7,6 +7,7 @@
 #include "tool_logs.h"
 #include "project.h"
 #include "steam.h"
+#include "hammer_reload.h"
 #include <windows.h>
 #include <filesystem>
 #include <memory>
@@ -21,6 +22,7 @@ class Runtime {
 public:
     explicit Runtime(std::filesystem::path root, std::filesystem::path settings_root = {}, bool factory_events = true, std::string process_scope = {}, SteamExports steam_exports = {});
     Summary start();
+    int manage(const char* action,const char* addon,std::string& message);
     bool initialize_project(const std::filesystem::path&,const std::vector<std::wstring>&);
     void event(const char* name, const char* value);
     void shutdown();
@@ -34,6 +36,7 @@ public:
     void initialization_error(const std::string& error);
     void log(std::string_view message) noexcept;
 private:
+    Summary scan(const std::string& only={},const std::filesystem::path& staged={});
     struct Status { std::string id, version, state, detail; std::vector<std::string> tools; };
     std::vector<Status> statuses_;
     std::string notice_;
@@ -51,10 +54,13 @@ private:
         Runtime* owner;
         std::string id, directory;
         HMODULE module = nullptr;
+        const HA_ReloadV1* reload = nullptr;
+        unsigned generation=0;
         const HA_AddonV1* api = nullptr;
         HA_HostV1 host{};
         bool active = false;
         bool registering = false;
+        bool retired = false;
         std::vector<Contribution> contributions;
         struct LogSubscription {uint64_t id;HA_LogCallbackFn callback;uint32_t minimum;uint64_t after;};
         std::vector<LogSubscription> logs;
@@ -83,7 +89,8 @@ private:
     static int HA_CALL post_editor(void*,HA_EditorCallbackFn,const char*,uint64_t) noexcept;
     static void HA_CALL addon_log(void* context, const char* message) noexcept;
     std::filesystem::path root_;
-    std::vector<std::unique_ptr<Addon>> addons_;
+    std::vector<std::unique_ptr<Addon>> addons_,retired_;
+    bool stopped_=false;
     std::mutex log_mutex_;
     std::recursive_mutex callbacks_;
     bool started_ = false;

@@ -7,7 +7,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('id')
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--template', choices=['hello', 'commands', 'panel_settings', 'menu_hooks', 'note_import', 'picker_notes', 'editor_watch', 'live_status', 'compile_report', 'tool_console', 'project_context', 'steam_context'], default='hello')
+    parser.add_argument('--template', choices=['hello', 'commands', 'panel_settings', 'menu_hooks', 'note_import', 'picker_notes', 'editor_watch', 'live_status', 'compile_report', 'tool_console', 'project_context', 'steam_context', 'reload_counter'], default='hello')
     parser.add_argument('--tools', default=None, help='Comma-separated tool tags (default: selected template)' )
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]

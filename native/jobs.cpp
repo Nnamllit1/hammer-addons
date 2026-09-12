@@ -96,6 +96,13 @@ void Jobs::window(uint64_t id,bool open) {
     std::erase_if(posted_,[&](const auto& p){return p.window==id;});
 }
 bool Jobs::window_open(uint64_t id) {std::lock_guard lock(mutex_);return !stopped_ && (!id || windows_.contains(id));}
+bool Jobs::idle(const std::string& owner) {
+    std::lock_guard lock(mutex_);
+    // Completed workers must have their terminal deliveries drained too. This
+    // prevents an old generation's notifications reaching a replacement instance.
+    return std::none_of(work_.begin(),work_.end(),[&](const auto& w){return w->owner==owner;}) &&
+        std::none_of(posted_.begin(),posted_.end(),[&](const auto& p){return p.owner==owner;});
+}
 void Jobs::stop(const std::string& owner) {
     std::lock_guard lock(mutex_);
     for(const auto& w:work_) if(w->owner==owner) w->cancelled=true;

@@ -29,7 +29,7 @@ def main():
         env['LOCALAPPDATA'] = str(work / 'localappdata')
         package = work / 'portable'
         for name in ['Launch Workshop Tools.cmd', 'tools_launcher.exe', 'hammer_addons_runtime.dll',
-                     'hammer_addons_ui.dll', 'README.md', 'LAUNCHER.md', 'BUILD_OUTPUT.md', 'TOOL_LOGS.md', 'PROJECT_CONTEXT.md', 'STEAM.md', 'addons/hello/addon.ini', 'addons/hello/hello.dll',
+                     'hammer_addons_ui.dll', 'README.md', 'LAUNCHER.md', 'BUILD_OUTPUT.md', 'TOOL_LOGS.md', 'PROJECT_CONTEXT.md', 'STEAM.md', 'HOT_RELOAD.md', 'addons/hello/addon.ini', 'addons/hello/hello.dll',
                      'addons/compile_report/addon.ini', 'addons/compile_report/compile_report.dll',
                      'addons/steam_context/addon.ini', 'addons/steam_context/steam_context.dll',
                      'addons/project_context/addon.ini', 'addons/project_context/project_context.dll',

@@ -28,6 +28,7 @@ public:
     bool post(const std::string& owner, HA_EditorCallbackFn callback, const char* text, uint64_t window);
     void window(uint64_t id, bool open);
     bool window_open(uint64_t id);
+    bool idle(const std::string& owner);
     void stop(const std::string& owner);
     void stop_all();
     std::vector<JobDelivery> take();

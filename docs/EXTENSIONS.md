@@ -12,6 +12,7 @@ Every public SDK feature has an example:
 
 | Example | Features |
 | --- | --- |
+| [reload_counter](../addons/reload_counter/reload_counter.cpp) | Opt-in DLL reload, cleanup contract and state preserved through settings |
 | [editor_watch](../addons/editor_watch/editor_watch.cpp) | Editor session/window metadata, lifecycle observations, read-only event history |
 | [live_status](../addons/live_status/live_status.cpp) | Programmatic label updates without overwriting editable inputs |
 | [compile_report](../addons/compile_report/compile_report.cpp) | Automatic Hammer build-output observation; optional saved-log background jobs, cancellation and queued callbacks |
@@ -26,8 +27,9 @@ Every public SDK feature has an example:
 | [note_import](../addons/note_import/note_import.cpp) | File extension filters, file callback, extending an import action with a handler chooser |
 
 Builds put optional example DLLs in `dist/examples/addons/`. Copy selected example
-folders into the portable package's `addons/` directory and restart Workshop
-Tools. `hello`, `compile_report`, `project_context`, `steam_context` and `tool_console` are installed by default. Example source is also packaged.
+folders into the portable package's `addons/` directory and click **Load new
+add-ons** in the manager. See [hot loading and reloading](HOT_RELOAD.md).
+`hello`, `compile_report`, `project_context`, `steam_context` and `tool_console` are installed by default. Example source is also packaged.
 
 Generate an independently buildable project:
 
@@ -39,7 +41,7 @@ cmake --install ../my_panel/build --config Release --prefix ../my_panel/package
 ```
 
 Templates are `hello`, `commands`, `panel_settings`, `menu_hooks` and
-`note_import`, `picker_notes`, `editor_watch`, `live_status`, `compile_report`, `project_context`, `steam_context` and `tool_console`. `--tools` changes manifest tool tags. Change each
+`note_import`, `picker_notes`, `editor_watch`, `live_status`, `compile_report`, `project_context`, `steam_context`, `reload_counter` and `tool_console`. `--tools` changes manifest tool tags. Change each
 contribution's `tool` and `target` in source to change its UI placement.
 
 ## Registration and ownership

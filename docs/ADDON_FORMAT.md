@@ -21,7 +21,9 @@ enabled=true
 tools=asset_browser,hammer
 ```
 
-The manifest is ASCII, at most 16 KiB, with six required keys and the optional `tools` key. Blank lines
+The manifest is ASCII, at most 16 KiB, with six required keys and optional `tools`
+and `reloadable` keys. `reloadable` accepts `true` or `false` (default `false`);
+opting in requires the [reload lifecycle export](HOT_RELOAD.md). Blank lines
 and full-line `#` comments are allowed. Duplicate keys, unknown keys and sections
 are rejected. IDs use `[a-z][a-z0-9_]{0,63}`, versions use three numeric components,
 and `entry` is a simple DLL filename with letters, digits, underscores or hyphens.
@@ -105,10 +107,10 @@ initialization deadlocks; it cannot fix a loop entirely inside an add-on.
 Host logging is thread-safe. No C++ objects, STL containers, exceptions or ownership cross the ABI.
 All event strings are borrowed. The host table lives for the runtime's lifetime.
 
-DLLs remain loaded until process exit; changing an add-on requires restarting
-Workshop Tools. Explicit `on_shutdown` is available in the standalone host, but is not
-called from DLL_PROCESS_DETACH or guaranteed at editor termination. Native hot
-reload requires a future protocol for detaching hooks, callbacks and threads.
+DLL images remain loaded until process exit. Add-ons can opt into
+[hot reload](HOT_RELOAD.md); other add-ons require restarting Workshop Tools
+after changes. Explicit `on_shutdown` is available during reload and in the
+standalone host, but is not called from DLL_PROCESS_DETACH or guaranteed at editor termination.
 Flush important state during normal execution.
 
 Set `enabled=false` to disable an add-on, or create `disabled` beside the runtime DLL to

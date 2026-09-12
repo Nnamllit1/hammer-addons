@@ -9,6 +9,9 @@ menu-action hooks, custom file handlers, editor metadata observations, backgroun
 queued editor callbacks, automatic Hammer build-output observation, and a manager with tool filters. Use it to install compatible add-ons or build your
 own against the included SDK.
 
+The manager can [load newly installed add-ons and reload opt-in DLLs](docs/HOT_RELOAD.md)
+without restarting Workshop Tools. The SDK includes a reloadable counter example.
+
 This is an unofficial project, independent of Valve.
 
 ## Included tools
@@ -63,8 +66,8 @@ those add-on folders into the portable package. The launcher refuses old proxy
 installations; [migration instructions](docs/LAUNCHER.md#migrating-a-replacement-dll-installation)
 explain the paths and command.
 
-Drop compatible native add-ons into the portable `addons/` folder and restart
-Workshop Tools. Set `enabled=false` in an add-on manifest to disable it, or create
+Drop compatible native add-ons into the portable `addons/` folder and click
+**Load new add-ons** in the manager, or restart Workshop Tools. Set `enabled=false` in its manifest to disable it on the next launch, or create
 a `disabled` file beside the portable runtime to disable all add-ons. Native
 add-ons execute with the editor's permissions and are not sandboxed.
 

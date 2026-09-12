@@ -176,11 +176,15 @@ closes too quickly, use the CMD file to read the error.
 **Read the security warning above before adding a DLL.** Only continue if you
 trust the add-on and where it came from.
 
-1. Close Workshop Tools.
-2. Extract the add-on's package.
-3. Copy its folder, containing `addon.ini` and its DLL, into **Hammer Addons/addons**.
+1. Extract the add-on's package.
+2. Copy its folder, containing `addon.ini` and its DLL, into **Hammer Addons/addons**.
    Keep any other files supplied inside that add-on folder.
-4. Start Workshop Tools with the launcher again and check the manager.
+3. In the **Workshop Add-ons** manager's **Add-ons** tab, click **Load new add-ons**.
+   Check that its status is **Loaded**.
+   If tools are closed, simply start them with the launcher instead.
+
+For updates, **Reload selected** works with add-ons that support hot reload.
+Other add-ons require a restart. See [loading and reloading add-ons](HOT_RELOAD.md).
 
 For example:
 

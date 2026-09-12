@@ -80,6 +80,12 @@ static int __cdecl invoke_build(void*,uint64_t handle,const char* phase,const HA
     try{return runtime->invoke(handle,"hammer",phase,"","",nullptr,0,nullptr,state);}catch(...){return HA_ERROR;}
 }
 static void __cdecl pump_jobs(void*) {runtime->pump_jobs();}
+static int __cdecl manage_addons(void*,const char* action,const char* addon,char* response,size_t capacity){
+    try {std::string message;const auto result=runtime->manage(action,addon,message);
+        if(response && capacity){const auto count=std::min(message.size(),capacity-1);memcpy(response,message.data(),count);response[count]=0;}
+        return result;
+    }catch(...){return 0;}
+}
 static void __cdecl editor_window(void*,uint64_t id,int open) {runtime->editor_window(id,open!=0);}
 static int __cdecl invoke_editor(void*,uint64_t handle,const char* tool,const char* phase,const HA_EditorStateV1* state) {
     try {return runtime->invoke(handle,tool,phase,"","",nullptr,0,state);}catch(...){return HA_ERROR;}
@@ -94,7 +100,7 @@ static void start_ui() {
         try {
             HMODULE module = nullptr;
             HA_UiStart start = nullptr;
-            static const HA_UiHost host{sizeof(HA_UiHost), nullptr, read_status, invoke, report_binding, invoke_editor, pump_jobs, editor_window, invoke_build};
+            static const HA_UiHost host{sizeof(HA_UiHost), nullptr, read_status, invoke, report_binding, invoke_editor, pump_jobs, editor_window, invoke_build, manage_addons};
             for (unsigned attempt = 0; attempt < 120; ++attempt) {
                 if (!module && GetModuleHandleW(L"Qt5Widgets.dll")) {
                     const auto file = loader_directory() / "hammer_addons_ui.dll";
