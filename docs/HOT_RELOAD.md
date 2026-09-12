@@ -53,17 +53,22 @@ Older framework versions reject the new manifest key.
 
 On reload, the framework:
 
-1. Checks the replacement's manifest and process scope, then copies its files
-   to a private generation directory while holding source files against writes.
+1. Checks the replacement's manifest and process scope, locks the captured
+   source files against writes, and rechecks directory membership. It copies
+   through those handles, verifies destination bytes under read locks, and
+   rechecks membership before the snapshot is ready. Changes detected during
+   staging reject the attempt before the current instance is retired.
 2. Refuses the operation if SDK jobs or queued deliveries remain pending. It
    never blocks the GUI waiting for them; finish or cancel jobs and retry.
 3. Calls the current instance's `prepare_reload()` on the GUI thread, with SDK
-   callback dispatch serialized. Return **0** to refuse and leave the instance
-   working unchanged. Return **1** only after removing all private hooks, timers,
+   callback dispatch serialized. Return **0** to refuse before changing private
+   state. The loader keeps the instance active; it cannot undo the callback's
+   side effects. Return **1** only after removing all private hooks, timers,
    threads and external callbacks. Do not enqueue new work or block the GUI.
 4. Removes the old instance from SDK dispatch, retires its contributions and
    subscriptions, and calls `on_shutdown()` once.
-5. Loads the new DLL copy and calls its `on_load()`. On a hot load or reload this
+5. Loads the prepared DLL copy using its captured manifest, without rereading
+   the installed package after retirement, and calls its `on_load()`. On a hot load or reload this
    runs on the GUI thread; initial startup may use the runtime startup thread.
    UI bindings refresh on the manager's next update.
 
@@ -76,6 +81,13 @@ callbacks, update panels or access settings.
 The framework cannot inspect arbitrary native code to prove cleanup is complete.
 Opt in only when the add-on can meet this contract. Keep `DllMain` minimal and
 perform initialization through `on_load()`.
+
+`prepare_reload()` is not a transaction. Returning 0 does not restore private
+memory, settings writes, external hooks or queued work that the callback changed.
+Check whether reload is possible before starting cleanup. There is no automatic
+rollback, and a separate readiness callback would still rely on the author to
+honor its contract. Returns other than 0 or 1 disable the instance as a lifecycle
+failure. The loader also refuses acceptance if the callback queued new SDK work.
 
 ## Limits and failures
 
@@ -94,9 +106,20 @@ Retired DLL images remain mapped until process exit. Reload stops dispatch to
 old instances; it does not call `FreeLibrary` or run their detach handlers.
 Windows or external code could otherwise still hold a return address or callback
 into an unloaded module. Memory use can grow, and each add-on is limited to
-32 loaded generations per process. Close all tools using this portable folder
+32 native load attempts per process, including failed attempts that may have
+executed DLL initialization. Close all tools using this portable folder
 before deleting `runtime-cache/` to reclaim disk space. Failed or declined
-attempts can also leave unused copies there.
+attempts that never reach native loading remove their own files when the last
+snapshot owner releases them. Cleanup never recursively sweeps other generations.
+If another application blocks deletion, cleanup is best effort; crash leftovers
+and older cache entries can still require removal after closing the tools.
+
+An accepted reload uses the snapshot selected before `prepare_reload()`. New
+source files or a global disable marker created afterward apply to subsequent
+operations, not the replacement already being committed. This is a stable copy
+of captured files, not a publisher-supplied transaction or a sandbox. Finish a
+multi-file build or installation before requesting reload; the loader cannot
+infer whether an otherwise readable package represents a completed release.
 
 Manifest, copy and busy-job failures leave the current instance running.
 A lifecycle exception disables it and requires a restart. If the replacement's

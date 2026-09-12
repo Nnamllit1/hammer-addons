@@ -11,12 +11,14 @@
 #include <windows.h>
 #include <filesystem>
 #include <memory>
+#include <map>
 #include <mutex>
 #include <string>
 #include <string_view>
 #include <vector>
 
 namespace ha {
+struct ReloadCopy;
 struct Summary { unsigned loaded = 0, rejected = 0, disabled = 0; };
 class Runtime {
 public:
@@ -36,9 +38,10 @@ public:
     void initialization_error(const std::string& error);
     void log(std::string_view message) noexcept;
 private:
-    Summary scan(const std::string& only={},const std::filesystem::path& staged={});
+    Summary scan(const std::string& only={},const ReloadCopy* staged=nullptr);
     struct Status { std::string id, version, state, detail; std::vector<std::string> tools; };
     std::vector<Status> statuses_;
+    std::map<std::string,unsigned> reload_attempts_;
     std::string notice_;
     Settings settings_;
     Jobs jobs_;

@@ -1,4 +1,5 @@
 #include "runtime.h"
+#include "reload_snapshot.h"
 #include <algorithm>
 #include <atomic>
 #include <cwctype>
@@ -73,56 +74,6 @@ static std::map<std::string, std::string> manifest(const fs::path& file) {
     if (values.contains("tools")) tool_tags(values.at("tools"));
     return values;
 }
-struct ReloadLocks {
-    std::vector<HANDLE> files;
-    ~ReloadLocks(){for(const auto file:files)CloseHandle(file);}
-    BY_HANDLE_FILE_INFORMATION hold(const fs::path& path,bool directory=false){
-        const auto file=CreateFileW(path.c_str(),GENERIC_READ,FILE_SHARE_READ|(directory?FILE_SHARE_WRITE:0),nullptr,OPEN_EXISTING,
-            FILE_FLAG_BACKUP_SEMANTICS|FILE_FLAG_OPEN_REPARSE_POINT,nullptr);
-        if(file==INVALID_HANDLE_VALUE)throw std::runtime_error("Cannot lock reload package files; finish copying or building, then retry");
-        BY_HANDLE_FILE_INFORMATION info{};
-        if(!GetFileInformationByHandle(file,&info) || (info.dwFileAttributes&FILE_ATTRIBUTE_REPARSE_POINT)){
-            CloseHandle(file);throw std::runtime_error("Invalid reload package path");
-        }
-        try{files.push_back(file);}catch(...){CloseHandle(file);throw;}
-        return info;
-    }
-};
-struct ReloadCopy {fs::path directory;std::shared_ptr<ReloadLocks> locks;};
-static ReloadCopy stage_reloadable(const fs::path& source,const fs::path& root,const std::string& entry) {
-    if(!plain_path(source))throw std::runtime_error("Reload package contains a reparse point");
-    ReloadCopy result{{},std::make_shared<ReloadLocks>()};
-    result.locks->hold(source,true);
-    std::vector<fs::path> files,directories;
-    uint64_t bytes=0;size_t count=0;
-    for(const auto& file:fs::recursive_directory_iterator(source)) {
-        if(++count>1024)throw std::runtime_error("Reload package exceeds 1024 entries");
-        if(!plain_path(file.path()))throw std::runtime_error("Reload package contains a reparse point");
-        if(file.is_directory()){result.locks->hold(file.path(),true);directories.push_back(file.path());continue;}
-        if(!file.is_regular_file())throw std::runtime_error("Reload package contains a non-regular file");
-        auto extension=file.path().extension().wstring();std::transform(extension.begin(),extension.end(),extension.begin(),::towlower);
-        if(extension==L".dll" && file.path()!=source/entry)throw std::runtime_error("Reloadable packages currently support one DLL; private DLL dependencies require restart");
-        const auto info=result.locks->hold(file.path());
-        bytes+=(uint64_t(info.nFileSizeHigh)<<32)|info.nFileSizeLow;
-        if(bytes>1024ull*1024*1024)throw std::runtime_error("Reload package exceeds 1 GiB");
-        files.push_back(file.path());
-    }
-    if(std::find(files.begin(),files.end(),source/entry)==files.end())throw std::runtime_error("Reload package DLL is missing");
-    const auto cache=root/"runtime-cache";
-    if(!plain_path(cache))throw std::runtime_error("Invalid reload cache path");
-    fs::create_directories(cache);
-    static std::atomic<uint64_t> serial{0};fs::path generation;
-    do {generation=cache/(std::to_string(GetCurrentProcessId())+"-"+std::to_string(GetTickCount64())+"-"+std::to_string(++serial));}while(!fs::create_directory(generation));
-    result.directory=generation/source.filename();fs::create_directory(result.directory);
-    for(const auto& directory:directories)fs::create_directories(result.directory/directory.lexically_relative(source));
-    // Holding source handles denies concurrent writes during the copy. Retain
-    // destination read handles through LoadLibrary and on_load too.
-    for(const auto& file:files){
-        const auto target=result.directory/file.lexically_relative(source);
-        fs::copy_file(file,target);result.locks->hold(target);
-    }
-    return result;
-}
 Runtime::Runtime(fs::path root, fs::path settings_root, bool factory_events, std::string process_scope, SteamExports steam_exports) : settings_(std::move(settings_root)), steam_(steam_exports), root_(std::move(root)), factory_events_(factory_events), process_scope_(std::move(process_scope)) {}
 void Runtime::log(std::string_view message) noexcept {
     // A failing or reentrant sink must never unwind through the host ABI or
@@ -161,15 +112,16 @@ Summary Runtime::start() {
     struct Reset{bool& flag;~Reset(){flag=false;}} reset{dispatching_};
     return scan();
 }
-Summary Runtime::scan(const std::string& only,const fs::path& staged) {
+Summary Runtime::scan(const std::string& only,const ReloadCopy* staged) {
     Summary result;
     if (!plain_path(root_)) throw std::runtime_error("loader directory contains a reparse point");
-    if (fs::exists(root_ / "disabled")) { notice_ = "Add-ons disabled by the global marker file. Remove it and restart Workshop Tools to load add-ons."; log("disabled by marker file"); return result; }
+    if (!staged && fs::exists(root_ / "disabled")) { notice_ = "Add-ons disabled by the global marker file. Remove it and restart Workshop Tools to load add-ons."; log("disabled by marker file"); return result; }
     fs::path directory = root_ / "addons";
-    if (!fs::exists(directory)) { log("no addons directory"); return result; }
+    if (!staged && !fs::exists(directory)) { log("no addons directory"); return result; }
     if (!plain_path(directory)) throw std::runtime_error("addons directory contains a reparse point");
     std::vector<fs::path> paths;
-    for (const auto& item : fs::directory_iterator(directory)) if (item.is_directory()) paths.push_back(item.path());
+    if(staged)paths.push_back(staged->directory);
+    else for (const auto& item : fs::directory_iterator(directory)) if (item.is_directory()) paths.push_back(item.path());
     std::sort(paths.begin(), paths.end());
     for (const auto& path : paths) {
         const auto id=path.filename().string();
@@ -193,8 +145,9 @@ Summary Runtime::scan(const std::string& only,const fs::path& staged) {
                 status.state="Skipped";status.detail="Not enabled for this application";continue;
             }
             const bool reloadable=data.contains("reloadable") && data.at("reloadable")=="true";
-            const auto copy=reloadable && staged.empty()?stage_reloadable(path,root_,data.at("entry")):ReloadCopy{};
-            const auto load_path=reloadable?(staged.empty()?copy.directory:staged):path;
+            if(reloadable && reload_attempts_[id]>=32)throw std::runtime_error("32 native load attempts reached for this add-on; restart Workshop Tools");
+            const auto copy=staged?*staged:(reloadable?stage_reloadable(path,root_,data.at("entry")):ReloadCopy{});
+            const auto load_path=reloadable?copy.directory:path;
             if(reloadable && manifest(load_path/"addon.ini")!=data)throw std::runtime_error("Manifest changed while preparing reload copy; retry");
             const auto entry = fs::absolute(load_path / data.at("entry"));
             if (!plain_path(entry)) throw std::runtime_error("DLL path contains a reparse point");
@@ -205,6 +158,9 @@ Summary Runtime::scan(const std::string& only,const fs::path& staged) {
             const auto utf8 = fs::absolute(load_path).u8string();
             addon->directory.assign(utf8.begin(), utf8.end());
             // No current-directory DLL search. Private dependencies belong beside the add-on.
+            // DllMain can execute even when LoadLibrary ultimately reports failure.
+            // Never remove a generation once native loading has been attempted.
+            if(reloadable){++reload_attempts_[id];copy.retain();}
             addon->module = LoadLibraryExW(entry.c_str(), nullptr, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
             if (!addon->module) throw std::runtime_error("LoadLibraryEx failed: " + std::to_string(GetLastError()));
             // Retain every loaded module until process exit, even on rejection. Its DllMain
@@ -621,7 +577,7 @@ int Runtime::manage(const char* action,const char* id,std::string& message){
         if(found==addons_.end() || !(*found)->active)throw std::runtime_error("Select a running add-on to reload");
         auto& old=**found;
         if(!old.reload)throw std::runtime_error("This add-on has not opted into hot reload; restart Workshop Tools");
-        if(old.generation>=31)throw std::runtime_error("32 generations reached for this add-on; restart Workshop Tools to reclaim retired images");
+        if(old.generation>=31 || reload_attempts_[old.id]>=32)throw std::runtime_error("32 generations reached for this add-on; restart Workshop Tools to reclaim retired images");
         if(!jobs_.idle(old.id))throw std::runtime_error("Add-on jobs or queued callbacks are still pending. Let them finish, then retry reload");
         const auto source=root_/"addons"/old.id;
         const auto data=manifest(source/"addon.ini");
@@ -636,6 +592,7 @@ int Runtime::manage(const char* action,const char* id,std::string& message){
         int prepared=0;
         try{
             prepared=old.reload->prepare_reload();
+            if(prepared!=0 && prepared!=1)throw std::runtime_error("Invalid prepare_reload result");
             if(prepared==1 && !jobs_.idle(old.id))throw std::runtime_error("Queued work during retirement");
         }
         catch(...){
@@ -643,7 +600,7 @@ int Runtime::manage(const char* action,const char* id,std::string& message){
             statuses_[old.status_index].state="Failed";statuses_[old.status_index].detail="Reload preparation failed; restart required";
             throw std::runtime_error(statuses_[old.status_index].detail);
         }
-        if(prepared!=1){message="Add-on declined reload; the current instance remains active.";return 0;}
+        if(prepared!=1){message="Add-on declined reload; the loader kept the current instance active.";return 0;}
         const auto name=old.id;const auto generation=old.generation+1;const auto index=old.status_index;
         old.active=false;jobs_.stop(name);old.logs.clear();old.steam_subscriptions.clear();old.contributions.clear();
         try{if(old.api->on_shutdown)old.api->on_shutdown();}
@@ -651,7 +608,7 @@ int Runtime::manage(const char* action,const char* id,std::string& message){
         old.retired=true;
         // Keep contexts and images resident, but remove retired generations from dispatch/job ownership.
         retired_.push_back(std::move(*found));addons_.erase(found);
-        const auto result=scan(name,staged.directory);
+        const auto result=scan(name,&staged);
         for(auto& a:addons_)if(a->id==name)a->generation=generation;
         if(!result.loaded){message="Replacement failed to load. The previous instance is stopped; see Details.";return 0;}
         message="Reloaded "+name+" without restarting Workshop Tools.";return 1;

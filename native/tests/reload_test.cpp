@@ -41,7 +41,14 @@ int wmain(int argc,wchar_t** argv){try{
         check(call(runtime,old_handle)=="version 1","first binary");
         int wrong=1;std::thread worker([&]{std::string reply;wrong=runtime.manage("reload","reload_probe",reply);});worker.join();check(!wrong,"wrong thread refused");
         auto mode=symbol<void(HA_CALL*)(int)>(old,"ProbeMode");
-        mode(1);check(!runtime.manage("reload","reload_probe",message) && call(runtime,old_handle)=="version 1","veto preserves instance");mode(0);
+        const auto cache_count=[&]{return std::distance(fs::directory_iterator(root/"runtime-cache"),fs::directory_iterator{});};
+        const auto before_veto=cache_count();
+        mode(1);
+        for(int i=0;i<5;++i)check(!runtime.manage("reload","reload_probe",message) && call(runtime,old_handle)=="version 1","veto preserves instance");
+        check(cache_count()==before_veto,"vetoed generations cleaned up");
+        mode(8);check(!runtime.manage("reload","reload_probe",message),"veto allowed");runtime.pump_jobs();
+        check(symbol<int(HA_CALL*)()>(old,"ProbeDeliveries")()==1,"loader preserves work queued by vetoing add-on; no rollback promised");
+        check(symbol<int(HA_CALL*)()>(old,"ProbeStops")()==0,"veto never shuts down old instance");mode(0);
         check(symbol<int(HA_CALL*)()>(old,"ProbePost")(),"queue callback");
         check(!runtime.manage("reload","reload_probe",message) && message.find("pending")!=std::string::npos,"pending delivery refuses reload");runtime.pump_jobs();
         const auto job=symbol<uint64_t(HA_CALL*)()>(old,"ProbeJob")();check(job!=0,"start worker");
@@ -70,7 +77,7 @@ int wmain(int argc,wchar_t** argv){try{
         check(!runtime.manage("reload","reload_probe",message) && message.find("32 generations")!=std::string::npos,"generation limit");
         runtime.shutdown();check(!runtime.manage("load","",message),"management after shutdown refused");
     }
-    for(int fault:{2,3,4}){
+    for(int fault:{2,3,4,9}){
         const auto root=base/("fault"+std::to_string(fault));probe(root);
         ha::Runtime runtime(root,root/"settings");check(runtime.start().loaded==1,"fault fixture loaded");runtime.pump_jobs();
         symbol<void(HA_CALL*)(int)>(active_module(root),"ProbeMode")(fault);
@@ -101,6 +108,23 @@ int wmain(int argc,wchar_t** argv){try{
         check(!runtime.manage("reload","hello",message) && message.find("not opted")!=std::string::npos,"non-reloadable add-on refuses reload");runtime.shutdown();
     }
 
+    {
+        const auto root=base/"snapshot-commit";probe(root);
+        ha::Runtime runtime(root,root/"settings");check(runtime.start().loaded==1,"snapshot commit fixture loads");runtime.pump_jobs();
+        const auto old=active_module(root);symbol<void(HA_CALL*)(int)>(old,"ProbeMode")(10);probe(root,2);
+        check(runtime.manage("reload","reload_probe",message),message);
+        check(call(runtime,handle(runtime))=="version 2","accepted reload consumes prepared snapshot despite later source changes");
+        const auto module=active_module(root);const auto* host=symbol<const HA_HostV1*(HA_CALL*)()>(module,"ProbeHost")();
+        check(fs::exists(root/"disabled") && fs::exists(root/"addons/reload_probe/after-snapshot.txt"),"fixture changed live package after snapshot");
+        check(!fs::exists(fs::path(host->addon_directory)/"after-snapshot.txt"),"new source entries never leak into captured generation");runtime.shutdown();
+    }
+    {
+        const auto root=base/"failed-attempt-budget";probe(root);std::ofstream(root/"addons/reload_probe/reload_probe.dll")<<"Not a PE image";
+        ha::Runtime runtime(root,root/"settings");check(runtime.start().rejected==1,"invalid DLL refused");runtime.pump_jobs();
+        for(int i=0;i<35;++i)check(!runtime.manage("load","",message),"invalid DLL remains rejected");
+        check(std::distance(fs::directory_iterator(root/"runtime-cache"),fs::directory_iterator{})==32,"native load failures count toward retained-generation budget");
+        check(runtime.status_json().find("32 native load attempts")!=std::string::npos,"failed native attempts cannot grow cache without bound");runtime.shutdown();
+    }
     // Exercise every shipped manifest/export pair, including subscriptions and picker scope.
     for(const auto* name:{"hello","commands","panel_settings","menu_hooks","note_import","picker_notes","editor_watch","live_status","compile_report","tool_console","project_context","steam_context"}){
         const auto root=base/(std::string("example-")+name);const auto folder=root/"addons"/name;fs::create_directories(folder);

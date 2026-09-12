@@ -5,6 +5,8 @@
 #include <stdexcept>
 #include <atomic>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
 static const HA_HostV1* host;
 static int mode,prepares,stops;
 static bool active;
@@ -32,6 +34,14 @@ static int HA_CALL load(const HA_HostV1* api){
 static int HA_CALL prepare(){
     ++prepares;
     if(mode==1)return 0;
+    if(mode==8){HA_GetJobs(host)->post(host->context,delivery,"vetoed work",0);return 0;}
+    if(mode==9)return 2;
+    if(mode==10){
+        // Simulate an installer publishing unrelated new entries after staging.
+        const auto root=std::filesystem::path(host->addon_directory).parent_path().parent_path().parent_path();
+        std::ofstream(root/"disabled")<<"";
+        std::ofstream(root/"addons/reload_probe/after-snapshot.txt")<<"new source entry";
+    }
     if(mode==2)throw std::runtime_error("prepare failure");
     if(mode==4)HA_GetJobs(host)->post(host->context,delivery,"invalid retirement work",0);
     return 1;
