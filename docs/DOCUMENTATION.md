@@ -39,53 +39,7 @@ Write for users, add-on authors, and contributors. Describe supported behavior,
 examples, and limitations. Release notes describe the corresponding release;
 the rest of the website tracks `main`.
 
-## Publish with GitHub Pages
+## Automated checks
 
-1. In the repository's **Settings > Pages**, select **GitHub Actions** as the
-   publishing source.
-2. Push the documentation configuration to `main`. The **Documentation** workflow
-   builds and checks the site, then deploys it. Later documentation changes on
-   `main` publish automatically. Pull requests run the build without deployment.
-3. Open the URL shown by the workflow's **github-pages** environment. The default
-   address for this repository is `https://nnamllit1.github.io/hammer-addons/`.
-
-To republish without editing a page, open **Actions > Documentation > Run workflow**
-and select `main`. Forks should set the repository Actions variable
-`DOCS_SITE_URL` to their own complete Pages URL, including its trailing slash.
-For local fork builds, change `site_url` in `mkdocs.yml` or set the same environment
-variable.
-
-See [GitHub's custom workflow guide](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages).
-
-## Connect a custom domain
-
-For a subdomain such as `docs.example.com`:
-
-1. Verify domain ownership in GitHub's account Pages settings, then set
-   **Settings > Pages > Custom domain** in the repository to `docs.example.com`.
-2. At the DNS provider, create a **CNAME** record named `docs` pointing to
-   **`nnamllit1.github.io`**. Use the account hostname, without `https://` or the
-   repository path. For a fork, use its owner's Pages hostname.
-3. In **Settings > Secrets and variables > Actions > Variables**, set
-   `DOCS_SITE_URL` to `https://docs.example.com/` and rerun the Documentation
-   workflow. This updates canonical URLs and the sitemap.
-4. Once GitHub's DNS check and certificate provisioning finish, enable
-   **Enforce HTTPS** in Pages settings.
-
-The Actions deployment uses the custom domain in GitHub's settings; it does not
-require a checked-in `CNAME` file. For an apex domain such as `example.com`, use
-the DNS records in [GitHub's domain guide](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site/managing-a-custom-domain-for-your-github-pages-site).
-
-To preview a different base URL locally in PowerShell:
-
-```powershell
-$env:DOCS_SITE_URL = 'https://docs.example.com/'
-.venv-docs\Scripts\python.exe -m mkdocs build --strict
-```
-
-## Other hosting providers
-
-Build with the intended `DOCS_SITE_URL` and upload the contents of `site/` to
-any static web host. No Python server or database is needed in production.
-Preserve the directory structure and configure the host to serve `index.html`
-inside each directory.
+The Documentation workflow checks pull requests with a strict MkDocs build.
+Documentation changes merged into main are published automatically.

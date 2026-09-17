@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="208" height="184" viewBox="0 0 208 184" role="img" aria-labelledby="title">
+<title id="title">Hammer Addons</title>
+<style>.ink{fill:#000000}.accent{fill:#000000}.ink-stroke{stroke:#000000}.accent-stroke{stroke:#000000}</style>
+<g transform="translate(56 0) scale(1.5)"><g class="accent-stroke" fill="none" stroke-width="2.5" stroke-linecap="square">
+<path d="M6 19V6h13M6 45v13h13M45 58h13V45"/>
+</g>
+<g transform="rotate(-38 31 32)">
+<path class="ink" d="M17 14h23l5 5v8H17Z"/>
+<path class="ink" d="M27 29h9v23a2 2 0 0 1-2 2h-5a2 2 0 0 1-2-2Z"/>
+</g>
+<path class="accent" d="M44 9q2-3 6-3 7 0 7 6 0 3-4 6l-4 3h8v3H44v-3l7-6q3-2 3-3 0-3-4-3-3 0-4 3Z"/></g><g class="ink-stroke" transform="translate(21 111) scale(1)" fill="none" stroke-width="4.5" stroke-linecap="square" stroke-linejoin="round"><path transform="translate(0 0)" d="M0 0V28M18 0V28M0 14H18"/><path transform="translate(29 0)" d="M0 28 9 0 18 28M4 18H14"/><path transform="translate(58 0)" d="M0 28V0L10 16 20 0V28"/><path transform="translate(87 0)" d="M0 28V0L10 16 20 0V28"/><path transform="translate(116 0)" d="M18 0H0V28H18M0 14H15"/><path transform="translate(145 0)" d="M0 28V0H11Q18 0 18 7T11 14H0M10 14 20 28"/></g><g class="accent-stroke" transform="translate(51 155) scale(0.64)" fill="none" stroke-width="4.5" stroke-linecap="square" stroke-linejoin="round"><path transform="translate(0 0)" d="M0 28 9 0 18 28M4 18H14"/><path transform="translate(29 0)" d="M0 0V28H8Q20 28 20 14T8 0Z"/><path transform="translate(58 0)" d="M0 0V28H8Q20 28 20 14T8 0Z"/><path transform="translate(87 0)" d="M10 0Q0 0 0 10V18Q0 28 10 28T20 18V10Q20 0 10 0Z"/><path transform="translate(116 0)" d="M0 28V0L20 28V0"/><path transform="translate(145 0)" d="M19 3Q16 0 10 0 0 0 0 7T10 14Q20 14 20 21T10 28Q4 28 0 25"/></g>
+</svg>

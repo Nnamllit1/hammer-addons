@@ -1,5 +1,8 @@
 # Hammer Addons
 
+![Hammer Addons](assets/brand/logo-dark.svg){ .ha-logo-dark .ha-brand-wordmark }
+![Hammer Addons](assets/brand/logo-light.svg){ .ha-logo-light .ha-brand-wordmark }
+
 Native add-ons for **CS2 Workshop Tools**, with a shared add-on manager and a
 versioned C SDK. Install compatible extensions or build your own commands,
 dock panels, import handlers, and editor workflows.

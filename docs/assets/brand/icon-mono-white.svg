@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+<title id="title">Hammer Addons</title>
+<style>.ink{fill:#ffffff}.accent{fill:#ffffff}.ink-stroke{stroke:#ffffff}.accent-stroke{stroke:#ffffff}</style>
+<g class="accent-stroke" fill="none" stroke-width="2.5" stroke-linecap="square">
+<path d="M6 19V6h13M6 45v13h13M45 58h13V45"/>
+</g>
+<g transform="rotate(-38 31 32)">
+<path class="ink" d="M17 14h23l5 5v8H17Z"/>
+<path class="ink" d="M27 29h9v23a2 2 0 0 1-2 2h-5a2 2 0 0 1-2-2Z"/>
+</g>
+<path class="accent" d="M44 9q2-3 6-3 7 0 7 6 0 3-4 6l-4 3h8v3H44v-3l7-6q3-2 3-3 0-3-4-3-3 0-4 3Z"/>
+</svg>

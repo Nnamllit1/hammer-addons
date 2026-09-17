@@ -25,3 +25,6 @@ runtime-cache/
 # Documentation environment and generated website
 .venv-docs/
 site/
+
+# Local research and working notes
+.local/

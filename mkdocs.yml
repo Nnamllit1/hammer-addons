@@ -9,6 +9,8 @@ theme:
   name: material
   language: en
   font: false
+  logo: assets/brand/icon-dark.svg
+  favicon: assets/brand/favicon.svg
   palette:
     - scheme: slate
       primary: custom
@@ -66,8 +68,8 @@ nav:
   - Contributing:
       - Architecture: ARCHITECTURE.md
       - Documentation website: DOCUMENTATION.md
+      - Logo and brand assets: BRAND.md
       - Releases: RELEASING.md
-      - Community opportunities: COMMUNITY_OPPORTUNITIES.md
   - Release notes:
       - v0.1.0-alpha.4: releases/v0.1.0-alpha.4.md
       - v0.1.0-alpha.3: releases/v0.1.0-alpha.3.md

@@ -65,3 +65,35 @@
   outline: 2px solid var(--md-accent-fg-color);
   outline-offset: 3px;
 }
+
+/* Match the page's selected scheme, including the manual theme toggle. */
+[data-md-color-scheme="slate"] .ha-logo-light,
+[data-md-color-scheme="default"] .ha-logo-dark {
+  display: none;
+}
+
+.ha-brand-wordmark {
+  width: 288px;
+  max-width: 100%;
+  height: auto;
+}
+
+.ha-brand-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+
+.ha-brand-sample {
+  display: grid;
+  place-items: center;
+  min-height: 160px;
+  padding: 1.25rem;
+  border-radius: 0.5rem;
+  border: 1px solid #8795a52e;
+}
+
+.ha-brand-sample--dark { background: #181c23; }
+.ha-brand-sample--light { background: #e8ebef; }
+.ha-brand-sample img { max-width: 100%; height: auto; }

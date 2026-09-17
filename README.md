@@ -1,3 +1,9 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/brand/logo-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="docs/assets/brand/logo-light.svg">
+  <img src="docs/assets/brand/logo-light.svg" alt="Hammer Addons" width="360" height="120">
+</picture>
+
 # Hammer Addons
 
 A native **add-on framework for CS2 Workshop Tools**, with a versioned C SDK
@@ -20,7 +26,7 @@ This is an unofficial project, independent of Valve.
 
 Start with the [documentation overview](docs/index.md), browse the
 [SDK quickstart](docs/DEVELOPING.md), or read how to
-[preview and publish the MkDocs website](docs/DOCUMENTATION.md), including custom domains.
+[edit and preview the documentation](docs/DOCUMENTATION.md).
 
 ## Included tools
 
