@@ -60,7 +60,7 @@ panel-button callback on the GUI thread. Startup callbacks, automatic updates,
 menu hooks and background jobs cannot open it. The provider rechecks the account,
 AppID and overlay availability before issuing a request.
 
-The complete [steam_context example](../addons/steam_context/steam_context.cpp)
+The complete [steam_context example](https://github.com/Nnamllit1/hammer-addons/blob/main/addons/steam_context/steam_context.cpp)
 demonstrates subscriptions, pagination, presence and both overlay actions. Generate
 a standalone add-on with:
 

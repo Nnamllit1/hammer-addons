@@ -68,7 +68,7 @@ An abrupt process exit does not guarantee a final callback or completed file wri
   lossless byte stream or stdin/stdout pipe. Keep authoritative output separately
   when every byte must be retained.
 
-The [compile_report example](../addons/compile_report/compile_report.cpp) demonstrates
+The [compile_report example](https://github.com/Nnamllit1/hammer-addons/blob/main/addons/compile_report/compile_report.cpp) demonstrates
 background file inspection, progress, messages, cancellation, result delivery,
 standalone queued callbacks and live panel updates. It is included in the portable
 package. Generate your own copy with `--template compile_report`.

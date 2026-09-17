@@ -85,9 +85,9 @@ and keep editor callbacks short.
 
 ## Examples
 
-- [editor_watch](../addons/editor_watch/editor_watch.cpp): session/window identity,
+- [editor_watch](https://github.com/Nnamllit1/hammer-addons/blob/main/addons/editor_watch/editor_watch.cpp): session/window identity,
   lifecycle observations, explicit unavailable paths, and a bounded visible history.
-- [live_status](../addons/live_status/live_status.cpp): a button updates a label
+- [live_status](https://github.com/Nnamllit1/hammer-addons/blob/main/addons/live_status/live_status.cpp): a button updates a label
   shared by that add-on's panels in the running tools process.
 
 After building, copy the chosen folder from `dist/examples/addons/` into the

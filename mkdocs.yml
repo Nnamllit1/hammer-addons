@@ -1,0 +1,75 @@
+site_name: Hammer Addons
+site_description: Native add-ons for CS2 Workshop Tools — installation, examples, and SDK reference.
+site_url: !ENV [DOCS_SITE_URL, 'https://nnamllit1.github.io/hammer-addons/']
+repo_url: https://github.com/Nnamllit1/hammer-addons
+repo_name: Nnamllit1/hammer-addons
+edit_uri: edit/main/docs/
+strict: true
+theme:
+  name: material
+  language: en
+  font: false
+  palette:
+    - scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+    - scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+  features:
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+extra_css:
+  - stylesheets/theme.css
+plugins:
+  - search
+markdown_extensions:
+  - admonition
+  - attr_list
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - toc:
+      permalink: true
+validation:
+  nav:
+    omitted_files: warn
+  links:
+    not_found: warn
+    unrecognized_links: warn
+    anchors: warn
+nav:
+  - Home: index.md
+  - Using add-ons:
+      - Installation: INSTALLATION.md
+      - Launcher and troubleshooting: LAUNCHER.md
+      - Loading and reloading: HOT_RELOAD.md
+      - Failure handling: FAILURE_HANDLING.md
+  - Build an add-on:
+      - Getting started: DEVELOPING.md
+      - Package format and core API: ADDON_FORMAT.md
+      - UI, commands, and examples: EXTENSIONS.md
+      - Editor observations: EDITOR_CONTEXT.md
+      - Project context: PROJECT_CONTEXT.md
+      - Background jobs: JOBS.md
+      - Build output: BUILD_OUTPUT.md
+      - Tool logs: TOOL_LOGS.md
+      - Steam integration: STEAM.md
+  - Contributing:
+      - Architecture: ARCHITECTURE.md
+      - Documentation website: DOCUMENTATION.md
+      - Releases: RELEASING.md
+      - Community opportunities: COMMUNITY_OPPORTUNITIES.md
+  - Release notes:
+      - v0.1.0-alpha.4: releases/v0.1.0-alpha.4.md
+      - v0.1.0-alpha.3: releases/v0.1.0-alpha.3.md
+      - v0.1.0-alpha.2: releases/v0.1.0-alpha.2.md
+      - v0.1.0-alpha.1: releases/v0.1.0-alpha.1.md

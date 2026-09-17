@@ -15,19 +15,19 @@ native crash limitations, see [failure handling](FAILURE_HANDLING.md).
 
 | Example | Features |
 | --- | --- |
-| [reload_counter](../addons/reload_counter/reload_counter.cpp) | Opt-in DLL reload, cleanup contract and state preserved through settings |
-| [editor_watch](../addons/editor_watch/editor_watch.cpp) | Editor session/window metadata, lifecycle observations, read-only event history |
-| [live_status](../addons/live_status/live_status.cpp) | Programmatic label updates without overwriting editable inputs |
-| [compile_report](../addons/compile_report/compile_report.cpp) | Automatic Hammer build-output observation; optional saved-log background jobs, cancellation and queued callbacks |
-| [tool_console](../addons/tool_console/tool_console.cpp) | Live native tool output, severity filters and subscriptions |
-| [steam_context](../addons/steam_context/steam_context.cpp) | Automatic Steam identity/friends snapshots, presence, paginated table and user-triggered overlay actions |
-| [project_context](../addons/project_context/project_context.cpp) | Verified project folders and project-local source lookup |
-| [hello](../addons/hello/hello.cpp) | Loading, logging, shutdown; factory observations on the legacy proxy |
-| [commands](../addons/commands/commands.cpp) | Menu command, shortcut, tool scope, callback feedback |
-| [picker_notes](../addons/picker_notes/picker_notes.cpp) | Project-picker opt-in, panel and persistent reminder |
-| [panel_settings](../addons/panel_settings/panel_settings.cpp) | Dock panel, label, button, text field, checkbox, choice, persistent settings |
-| [menu_hooks](../addons/menu_hooks/menu_hooks.cpp) | Before/after callbacks and suppressing an existing menu action |
-| [note_import](../addons/note_import/note_import.cpp) | File extension filters, file callback, extending an import action with a handler chooser |
+| [reload_counter](https://github.com/Nnamllit1/hammer-addons/blob/main/addons/reload_counter/reload_counter.cpp) | Opt-in DLL reload, cleanup contract and state preserved through settings |
+| [editor_watch](https://github.com/Nnamllit1/hammer-addons/blob/main/addons/editor_watch/editor_watch.cpp) | Editor session/window metadata, lifecycle observations, read-only event history |
+| [live_status](https://github.com/Nnamllit1/hammer-addons/blob/main/addons/live_status/live_status.cpp) | Programmatic label updates without overwriting editable inputs |
+| [compile_report](https://github.com/Nnamllit1/hammer-addons/blob/main/addons/compile_report/compile_report.cpp) | Automatic Hammer build-output observation; optional saved-log background jobs, cancellation and queued callbacks |
+| [tool_console](https://github.com/Nnamllit1/hammer-addons/blob/main/addons/tool_console/tool_console.cpp) | Live native tool output, severity filters and subscriptions |
+| [steam_context](https://github.com/Nnamllit1/hammer-addons/blob/main/addons/steam_context/steam_context.cpp) | Automatic Steam identity/friends snapshots, presence, paginated table and user-triggered overlay actions |
+| [project_context](https://github.com/Nnamllit1/hammer-addons/blob/main/addons/project_context/project_context.cpp) | Verified project folders and project-local source lookup |
+| [hello](https://github.com/Nnamllit1/hammer-addons/blob/main/addons/hello/hello.cpp) | Loading, logging, shutdown; factory observations on the legacy proxy |
+| [commands](https://github.com/Nnamllit1/hammer-addons/blob/main/addons/commands/commands.cpp) | Menu command, shortcut, tool scope, callback feedback |
+| [picker_notes](https://github.com/Nnamllit1/hammer-addons/blob/main/addons/picker_notes/picker_notes.cpp) | Project-picker opt-in, panel and persistent reminder |
+| [panel_settings](https://github.com/Nnamllit1/hammer-addons/blob/main/addons/panel_settings/panel_settings.cpp) | Dock panel, label, button, text field, checkbox, choice, persistent settings |
+| [menu_hooks](https://github.com/Nnamllit1/hammer-addons/blob/main/addons/menu_hooks/menu_hooks.cpp) | Before/after callbacks and suppressing an existing menu action |
+| [note_import](https://github.com/Nnamllit1/hammer-addons/blob/main/addons/note_import/note_import.cpp) | File extension filters, file callback, extending an import action with a handler chooser |
 
 Builds put optional example DLLs in `dist/examples/addons/`. Copy selected example
 folders into the portable package's `addons/` directory and click **Load new

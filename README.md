@@ -16,6 +16,12 @@ for callback isolation and the limits of in-process native add-ons.
 
 This is an unofficial project, independent of Valve.
 
+## Documentation
+
+Start with the [documentation overview](docs/index.md), browse the
+[SDK quickstart](docs/DEVELOPING.md), or read how to
+[preview and publish the MkDocs website](docs/DOCUMENTATION.md), including custom domains.
+
 ## Included tools
 
 - **Build log report:** automatically group build diagnostics, inspect suggested checks,
@@ -149,9 +155,10 @@ formats. The **Extensions** tab shows attached and waiting registrations for the
 current window. See the [extension API and examples](docs/EXTENSIONS.md).
 
 Hooks extend exposed Qt menu actions. Arbitrary native function interception,
-document editing APIs, model conversion, and hot reload are not implemented.
+document editing APIs and model conversion are not implemented.
 A specific importer needs a verified action target and its own conversion logic.
-Add-on changes require restarting Workshop Tools.
+Add-ons that opt into the reload lifecycle can be replaced without restarting;
+other add-on changes require restarting Workshop Tools.
 
 See the [API contract](docs/ADDON_FORMAT.md) for callback and threading rules,
 [architecture](docs/ARCHITECTURE.md) for implementation details, and

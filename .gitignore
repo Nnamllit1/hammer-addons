@@ -21,3 +21,7 @@ h2mcp.local.json
 
 # Private DLL generations used by hot reload
 runtime-cache/
+
+# Documentation environment and generated website
+.venv-docs/
+site/
