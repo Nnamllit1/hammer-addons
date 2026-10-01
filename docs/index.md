@@ -15,7 +15,7 @@ dock panels, import handlers, and editor workflows.
 | Load or reload an add-on without restarting | [Hot loading and reloading](HOT_RELOAD.md) |
 | Create your first native add-on | [Developer quickstart](DEVELOPING.md) |
 | Find an SDK feature and working example | [Extensions and examples](EXTENSIONS.md) |
-| Update an existing installation | [Release notes](releases/v0.1.0-alpha.5.md) |
+| Update an existing installation | [Release notes](releases/v0.1.0-alpha.6.md) |
 
 ## What is included?
 

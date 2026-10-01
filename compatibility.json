@@ -70,6 +70,20 @@
         "GetResourceManifests",
         "InstallSchemaBindings"
       ]
+    },
+    {
+      "name": "CS2 Asset Browser build 25640462 inspected 2026-10-01",
+      "module": "assetbrowser",
+      "sha256": "374a7f620a4ce30bf51e82ca8f709c1c2dcc322c417d0d4caac2f6b8eed3e37d",
+      "machine": 34404,
+      "exports": [
+        "BinaryProperties_GetValue",
+        "CreateInterface",
+        "ExtractModuleMetadata",
+        "GetResourceManifestCount",
+        "GetResourceManifests",
+        "InstallSchemaBindings"
+      ]
     }
   ],
   "logging_profiles": [
